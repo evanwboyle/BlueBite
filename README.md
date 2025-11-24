@@ -1,0 +1,2 @@
+# BlueBite
+Yale Buttery Webapp
