@@ -22,7 +22,7 @@ export function MenuGrid({ items, onAddToCart, cartCount = 0, onCartClick }: Men
   return (
     <div className="h-full flex flex-col">
       {/* Menu Header with Cart Button */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center justify-between rounded-t-none">
         <h2 className="text-lg font-bold">Menu</h2>
         {onCartClick && (
           <button
@@ -30,13 +30,13 @@ export function MenuGrid({ items, onAddToCart, cartCount = 0, onCartClick }: Men
             className="relative hover:bg-blue-700 px-3 py-2 rounded transition flex items-center gap-2"
             aria-label="Shopping cart"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M1 1H5L7.68 14.39C7.77 14.8 8.02 15.15 8.37 15.37C8.72 15.59 9.13 15.72 9.55 15.72H20.4C20.9 15.72 21.33 15.31 21.42 14.82L23 6.51C23.08 6.15 22.99 5.77 22.77 5.49C22.55 5.21 22.23 5.04 21.89 5.04H5.21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M9 20C9 20.5304 8.78929 21.0391 8.41421 21.4142C8.03914 21.7893 7.53043 22 7 22C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20C5 19.4696 5.21071 18.9609 5.58579 18.5858C5.96086 18.2107 6.46957 18 7 18C7.53043 18 8.03914 18.2107 8.41421 18.5858C8.78929 18.9609 9 19.4696 9 20Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M20 20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22C17.4696 22 16.9609 21.7893 16.5858 21.4142C16.2107 21.0391 16 20.5304 16 20C16 19.4696 16.2107 18.9609 16.5858 18.5858C16.9609 18.2107 17.4696 18 18 18C18.5304 18 19.0391 18.2107 19.4142 18.5858C19.7893 18.9609 20 19.4696 20 20Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             {cartCount > 0 && (
-              <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-sm font-bold rounded-full w-6 h-6 flex items-center justify-center">
                 {cartCount}
               </span>
             )}

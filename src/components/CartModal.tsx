@@ -6,7 +6,7 @@ interface CartModalProps {
   onClose: () => void;
   onRemoveItem: (index: number) => void;
   onCheckout: () => void;
-  onPassToCustomer: () => void;
+  onPassToCustomer?: () => void;
 }
 
 export function CartModal({
@@ -14,7 +14,6 @@ export function CartModal({
   onClose,
   onRemoveItem,
   onCheckout,
-  onPassToCustomer,
 }: CartModalProps) {
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -88,20 +87,12 @@ export function CartModal({
               <span className="text-2xl font-bold text-blue-600">${total.toFixed(2)}</span>
             </div>
 
-            <div className="space-y-3">
-              <button
-                onClick={onCheckout}
-                className="btn-primary w-full py-3 text-base"
-              >
-                Confirm Order
-              </button>
-              <button
-                onClick={onPassToCustomer}
-                className="btn-secondary w-full py-3 text-base"
-              >
-                Pass to Customer
-              </button>
-            </div>
+            <button
+              onClick={onCheckout}
+              className="btn-primary w-full py-3 text-base"
+            >
+              Confirm Order
+            </button>
           </div>
         )}
       </div>

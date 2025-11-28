@@ -31,6 +31,7 @@ export interface Order {
   status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
   placedAt: number;
   completedAt?: number;
+  specialInstructions?: string;
 }
 
 export interface Resco {

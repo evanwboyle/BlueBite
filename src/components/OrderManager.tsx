@@ -10,8 +10,11 @@ interface OrderManagerProps {
 export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
+  const [hideCompleted, setHideCompleted] = useState(false);
 
-  const sortedOrders = [...orders].sort((a, b) => b.placedAt - a.placedAt);
+  const sortedOrders = [...orders]
+    .filter(o => !hideCompleted || o.status !== 'completed')
+    .sort((a, b) => b.placedAt - a.placedAt);
 
   const statusColors: Record<Order['status'], string> = {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -50,18 +53,27 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
       {/* Header */}
       <div className="bg-gray-50 border-b p-4 flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">
-          Orders ({orders.length})
+          Orders ({sortedOrders.length})
         </h2>
-        {undoStack.length > 0 && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleUndo}
-            className="btn-small btn-secondary flex items-center gap-1"
-            title="Undo last action"
+            onClick={() => setHideCompleted(!hideCompleted)}
+            className={`btn-small ${hideCompleted ? 'bg-blue-600 text-white hover:bg-blue-700' : 'btn-secondary'} flex items-center gap-1`}
+            title="Toggle completed orders visibility"
           >
-            <RotateCcw size={14} />
-            Undo
+            {hideCompleted ? 'Show Completed' : 'Hide Completed'}
           </button>
-        )}
+          {undoStack.length > 0 && (
+            <button
+              onClick={handleUndo}
+              className="btn-small btn-secondary flex items-center gap-1"
+              title="Undo last action"
+            >
+              <RotateCcw size={14} />
+              Undo
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Orders List */}
@@ -123,11 +135,13 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                       </div>
                     </div>
 
-                    {/* Notes Section */}
-                    <div className="bg-white p-2 rounded border border-gray-200">
-                      <p className="text-xs font-medium text-gray-700">Special Instructions:</p>
-                      <p className="text-xs text-gray-600 mt-1">No special instructions</p>
-                    </div>
+                    {/* Notes Section - Only show if there are special instructions */}
+                    {order.specialInstructions && order.specialInstructions.trim() && (
+                      <div className="bg-white p-2 rounded border border-gray-200">
+                        <p className="text-xs font-medium text-gray-700">Special Instructions:</p>
+                        <p className="text-xs text-gray-600 mt-1">{order.specialInstructions}</p>
+                      </div>
+                    )}
 
                     {/* Action Buttons */}
                     <div className="flex gap-2">
