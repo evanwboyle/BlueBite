@@ -43,7 +43,7 @@
   - Order number
 
 #### Additional Backend Details
-- **Database System**: MongoDB
+- **Database System**: PostGreSQL
 - **ORM**: Prisma
 - **Database Migrations**: Use Prisma's built-in migration system to manage schema changes.
 - **API Design**: RESTful API with endpoints like `GET /menus`, `POST /menus`, etc.
@@ -67,7 +67,7 @@
 #### Additional Order Manager Details
 - **Real-Time Updates**: Use WebSockets for syncing orders in real-time.
 - **Undo Functionality**: Store actions in a temporary state (e.g., Redux) to allow undoing within a time window.
-- **UI/UX**: Follow Material Design principles for intuitive layouts. Consider TailwindCSS for styling.
+- **UI/UX**: Follow Material Design principles for intuitive layouts.
 
 ### On-Computer Ordering
 
