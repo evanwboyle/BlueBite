@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Order, OrderItem, MenuItem } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
-import { CartPanel } from './components/CartPanel';
+import { CartModal } from './components/CartModal';
 import { OrderManager } from './components/OrderManager';
 import { storage } from './utils/storage';
 import { mockMenuItems } from './utils/mockData';
@@ -14,6 +14,8 @@ function App() {
   const [cartItems, setCartItems] = useState<OrderItem[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
   const [passToCustomerMode, setPassToCustomerMode] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(65);
 
   // Initialize data from storage or mock
   useEffect(() => {
@@ -88,6 +90,7 @@ function App() {
     storage.setOrders(newOrders);
     setCartItems([]);
     storage.setCart({ items: [], total: 0 });
+    setIsCartOpen(false);
     setNotification(`Order ${newOrder.id} placed!`);
     setTimeout(() => setNotification(null), 3000);
   };
@@ -121,11 +124,13 @@ function App() {
     <div className="h-screen flex flex-col bg-gray-100">
       <Header />
 
-      {/* Notification */}
+      {/* Notification Overlay */}
       {notification && (
-        <div className="bg-blue-500 text-white px-4 py-2 shadow flex items-center gap-2">
-          <Bell size={18} />
-          {notification}
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
+          <div className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto">
+            <Bell size={18} />
+            {notification}
+          </div>
         </div>
       )}
 
@@ -136,36 +141,58 @@ function App() {
         </div>
       )}
 
-      {/* Main Layout */}
+      {/* Main Layout with Resizable Divider */}
       <div className="flex-1 flex overflow-hidden gap-4 p-4">
         {/* Left Panel - Ordering */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div style={{ flex: `0 0 ${leftPanelWidth}%` }} className="flex flex-col min-w-0">
           <div className="bg-white rounded-lg shadow border border-gray-200 flex-1 flex flex-col overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4">
-              <h2 className="text-lg font-bold">Menu</h2>
-            </div>
-            <MenuGrid items={menuItems} onAddToCart={handleAddToCart} />
+            <MenuGrid items={menuItems} onAddToCart={handleAddToCart} cartCount={cartItems.length} onCartClick={() => setIsCartOpen(true)} />
           </div>
         </div>
 
-        {/* Right Side - Cart and Orders */}
-        <div className="w-96 flex flex-col gap-4 min-w-0">
-          {/* Cart */}
-          <div className="flex-1 min-h-0">
-            <CartPanel
-              items={cartItems}
-              onRemoveItem={handleRemoveFromCart}
-              onCheckout={handleCheckout}
-              onPassToCustomer={handlePassToCustomer}
-            />
-          </div>
+        {/* Resizable Divider */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            const startX = e.clientX;
+            const startWidth = leftPanelWidth;
+            const container = (e.currentTarget.parentElement as HTMLElement);
+            const containerWidth = container.clientWidth;
 
-          {/* Order Manager */}
-          <div className="flex-1 min-h-0">
-            <OrderManager orders={orders} onUpdateOrder={handleUpdateOrder} />
-          </div>
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const deltaX = moveEvent.clientX - startX;
+              const deltaPercent = (deltaX / containerWidth) * 100;
+              const newWidth = Math.max(20, Math.min(80, startWidth + deltaPercent));
+              setLeftPanelWidth(newWidth);
+            };
+
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+            };
+
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+          className="w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200 flex-shrink-0"
+        />
+
+        {/* Right Side - Order Manager */}
+        <div style={{ flex: `0 0 ${100 - leftPanelWidth}%` }} className="flex flex-col min-w-0">
+          <OrderManager orders={orders} onUpdateOrder={handleUpdateOrder} />
         </div>
       </div>
+
+      {/* Overlays - rendered outside main layout */}
+      {isCartOpen && (
+        <CartModal
+          items={cartItems}
+          onClose={() => setIsCartOpen(false)}
+          onRemoveItem={handleRemoveFromCart}
+          onCheckout={handleCheckout}
+          onPassToCustomer={handlePassToCustomer}
+        />
+      )}
     </div>
   );
 }
