@@ -2,6 +2,7 @@ export interface Modifier {
   id: string;
   name: string;
   price: number;
+  description?: string;
 }
 
 export interface MenuItem {
@@ -12,6 +13,7 @@ export interface MenuItem {
   hot: boolean;
   disabled: boolean;
   image?: string;
+  description?: string;
   modifiers: Modifier[];
 }
 

@@ -6,6 +6,7 @@ import { CartModal } from './components/CartModal';
 import { OrderManager } from './components/OrderManager';
 import { storage } from './utils/storage';
 import { mockMenuItems } from './utils/mockData';
+import { api } from './utils/api';
 import { Bell } from 'lucide-react';
 
 function App() {
@@ -17,16 +18,35 @@ function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
 
-  // Initialize data from storage or mock
+  // Initialize data from cache-first strategy
   useEffect(() => {
-    const storedMenu = storage.getMenuItems();
-    if (storedMenu.length === 0) {
-      storage.setMenuItems(mockMenuItems);
-      setMenuItems(mockMenuItems);
-    } else {
-      setMenuItems(storedMenu);
-    }
+    const loadMenuItems = async () => {
+      // 1. Load from localStorage cache immediately for fast UX
+      const cachedMenu = storage.getMenuItems();
+      if (cachedMenu.length > 0) {
+        setMenuItems(cachedMenu);
+      }
 
+      // 2. Fetch fresh data from API in background
+      try {
+        const freshMenu = await api.fetchMenuItems();
+        setMenuItems(freshMenu);
+        storage.setMenuItems(freshMenu); // Update cache
+      } catch (error) {
+        console.error('Failed to fetch menu from API:', error);
+
+        // 3. If no cache and API fails, fall back to mock data
+        if (cachedMenu.length === 0) {
+          console.warn('Using mock data as fallback');
+          storage.setMenuItems(mockMenuItems);
+          setMenuItems(mockMenuItems);
+        }
+      }
+    };
+
+    loadMenuItems();
+
+    // Initialize orders and cart
     const storedOrders = storage.getOrders();
     setOrders(storedOrders);
 
