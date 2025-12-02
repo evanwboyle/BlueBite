@@ -1,5 +1,6 @@
 import { Menu } from 'lucide-react';
 import { ButterySelector } from './ButterySelector';
+import bluebiteLogo from '../assets/android-chrome-192x192.png';
 
 interface HeaderProps {
   selectedButtery: string | null;
@@ -12,9 +13,7 @@ export function Header({ selectedButtery, butteryOptions, onButteryChange }: Hea
     <header className="bg-gradient-to-r from-bluebite-primary to-bluebite-dark text-white shadow-lg">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-            <span className="text-bluebite-primary font-bold text-lg">B</span>
-          </div>
+          <img src={bluebiteLogo} alt="BlueBite logo" className="w-10 h-10 rounded-full" />
           <h1 className="text-2xl font-bold">BlueBite</h1>
         </div>
 
