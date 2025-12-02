@@ -107,7 +107,7 @@ export function CartModal({
                 type="text"
                 value={netId}
                 onChange={(e) => setNetId(e.target.value)}
-                placeholder="e.g., abc123"
+                placeholder="Ex. abc12"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -120,7 +120,8 @@ export function CartModal({
 
             <button
               onClick={handlePlaceOrder}
-              className="btn-primary w-full py-3 text-base"
+              className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!netId.trim()}
             >
               Place Order
             </button>

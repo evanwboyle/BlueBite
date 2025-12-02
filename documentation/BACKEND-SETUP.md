@@ -33,6 +33,10 @@
 - ✅ Orders persist across page refreshes
 - ✅ Error handling shows API issues immediately
 - ✅ CORS properly configured for localhost:5173
+- ✅ Yalies API integration for user profile lookup (names, pictures)
+- ✅ Menu item names enriched in order display
+- ✅ Orders display in reverse chronological order (newest at bottom)
+- ✅ 12-hour order window with sequential "Order #X" labeling
 
 ## Database Schema
 
@@ -576,6 +580,9 @@ curl http://localhost:3000/api/health
 ✅ Buttery discovery (list all colleges with item counts)
 ✅ Database persistence in Supabase PostgreSQL
 ✅ CORS properly configured for frontend integration
+✅ Yalies API integration for user profile lookup (frontend-only)
+✅ Menu item names enriched in order display
+✅ 12-hour order window with sequential labeling
 
 ## Next Steps
 
@@ -604,3 +611,13 @@ curl http://localhost:3000/api/health
 ### Prisma generation errors
 - Run `npm install` to reinstall dependencies
 - Delete `node_modules/@prisma` and run `npm install` again
+
+## Related Documentation
+
+For Yalies API integration details, see: [YALIES-INTEGRATION.md](./YALIES-INTEGRATION.md)
+
+This document covers:
+- Frontend-only user profile lookup using Yalies API
+- Caching strategy for user data
+- Display of student names and profile pictures in orders
+- API key configuration and security considerations
