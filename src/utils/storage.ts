@@ -1,55 +1,37 @@
-import type { Order, MenuItem } from '../types';
+import type { OrderItem } from '../types';
+
+interface Cart {
+  items: OrderItem[];
+  total: number;
+}
 
 export const storage = {
-  // Orders
-  getOrders: (): Order[] => {
-    const orders = localStorage.getItem('bluebite_orders');
-    return orders ? JSON.parse(orders) : [];
-  },
-
-  setOrders: (orders: Order[]): void => {
-    localStorage.setItem('bluebite_orders', JSON.stringify(orders));
-  },
-
-  addOrder: (order: Order): void => {
-    const orders = storage.getOrders();
-    orders.push(order);
-    storage.setOrders(orders);
-  },
-
-  updateOrder: (id: string, updates: Partial<Order>): void => {
-    const orders = storage.getOrders();
-    const index = orders.findIndex(o => o.id === id);
-    if (index !== -1) {
-      orders[index] = { ...orders[index], ...updates };
-      storage.setOrders(orders);
-    }
-  },
-
-  // Menu items
-  getMenuItems: (): MenuItem[] => {
-    const items = localStorage.getItem('bluebite_menu_items');
-    return items ? JSON.parse(items) : [];
-  },
-
-  setMenuItems: (items: MenuItem[]): void => {
-    localStorage.setItem('bluebite_menu_items', JSON.stringify(items));
-  },
-
-  // Current cart
-  getCart: () => {
+  // Current cart (temporary, until checkout)
+  getCart: (): Cart => {
     const cart = localStorage.getItem('bluebite_cart');
     return cart ? JSON.parse(cart) : { items: [], total: 0 };
   },
 
-  setCart: (cart: any): void => {
+  setCart: (cart: Cart): void => {
     localStorage.setItem('bluebite_cart', JSON.stringify(cart));
+  },
+
+  // Selected buttery (user preference)
+  getSelectedButtery: (): string | null => {
+    return localStorage.getItem('bluebite_selected_buttery');
+  },
+
+  setSelectedButtery: (buttery: string | null): void => {
+    if (buttery === null) {
+      localStorage.removeItem('bluebite_selected_buttery');
+    } else {
+      localStorage.setItem('bluebite_selected_buttery', buttery);
+    }
   },
 
   // Clear all
   clear: (): void => {
-    localStorage.removeItem('bluebite_orders');
-    localStorage.removeItem('bluebite_menu_items');
     localStorage.removeItem('bluebite_cart');
+    localStorage.removeItem('bluebite_selected_buttery');
   },
 };

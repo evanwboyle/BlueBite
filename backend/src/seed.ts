@@ -123,7 +123,7 @@ async function seed() {
     console.log(`📖 Loaded ${yaleItems.length} items from yalemenus.json`);
 
     // Clear existing menu items (optional - set to false to append)
-    const CLEAR_EXISTING = false;
+    const CLEAR_EXISTING = true;
     if (CLEAR_EXISTING) {
       await prisma.menuItem.deleteMany({});
       console.log('🗑️  Cleared existing menu items');
@@ -165,6 +165,7 @@ async function seed() {
               category,
               available: true,
               hot,
+              buttery: item['Residential College'] || null,
             },
           });
 
@@ -174,7 +175,7 @@ async function seed() {
           if (successCount % 100 === 0) {
             console.log(`✓ Inserted ${successCount} items...`);
           }
-        } catch (error) {
+        } catch {
           // Silently skip duplicate or other errors
           skipCount++;
         }

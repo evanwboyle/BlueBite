@@ -10,6 +10,21 @@
 - **Framework**: Express.js with TypeScript
 - **ORM**: Prisma v5.22.0
 
+## Recent Updates (December 2025)
+
+### Server-Side Implementation
+- ✅ Orders are now fully stored in the database (not localStorage)
+- ✅ Order creation accepts order items in a single transaction
+- ✅ Buttery/residential college filtering for menus and orders
+- ✅ New `/api/butteries` endpoint to discover available colleges with item counts
+- ✅ All data is persisted to PostgreSQL - no mock data fallbacks
+
+### Frontend Integration
+- ✅ Frontend fetches all data from backend API
+- ✅ No localStorage cache for menu items
+- ✅ Error handling shows API issues immediately
+- ✅ CORS properly configured for localhost:5173
+
 ## Database Schema
 
 The following tables are created in Supabase:
@@ -274,13 +289,26 @@ Get all modifiers for a specific menu item.
 ### Orders
 
 #### POST `/api/orders`
-Create a new order.
+Create a new order with items.
 
 **Request Body**:
 ```json
 {
   "userId": "cmijvme530000vfbrywvfad2q",
-  "totalPrice": 45.99
+  "totalPrice": 45.99,
+  "buttery": "Berkeley",
+  "items": [
+    {
+      "menuItemId": "cmijvregf0000l3e2bjrqn6of",
+      "quantity": 2,
+      "price": 12.99
+    },
+    {
+      "menuItemId": "cmijvregf0001l3e2bjrqn6og",
+      "quantity": 1,
+      "price": 19.01
+    }
+  ]
 }
 ```
 
@@ -289,16 +317,31 @@ Create a new order.
 {
   "id": "cmijvmhzc0002vfbrbboilaqa",
   "userId": "cmijvme530000vfbrywvfad2q",
+  "buttery": "Berkeley",
   "status": "pending",
   "totalPrice": 45.99,
   "createdAt": "2025-11-29T05:54:27.336Z",
   "updatedAt": "2025-11-29T05:54:27.336Z",
-  "orderItems": []
+  "orderItems": [
+    {
+      "id": "cmik0zxkp0018olchtn7aojbe",
+      "orderId": "cmijvmhzc0002vfbrbboilaqa",
+      "menuItemId": "cmijvregf0000l3e2bjrqn6of",
+      "quantity": 2,
+      "price": 12.99,
+      "modifiers": []
+    }
+  ]
 }
 ```
 
 #### GET `/api/users/:userId/orders`
-Get all orders for a specific user.
+Get all orders for a specific user, optionally filtered by buttery.
+
+**Query Parameters**:
+- `buttery` (optional): Filter orders by residential college (e.g., `?buttery=Berkeley`)
+
+**Example**: `/api/users/cmijvme530000vfbrywvfad2q/orders?buttery=Berkeley`
 
 **Response**:
 ```json
@@ -306,11 +349,21 @@ Get all orders for a specific user.
   {
     "id": "cmijvmhzc0002vfbrbboilaqa",
     "userId": "cmijvme530000vfbrywvfad2q",
+    "buttery": "Berkeley",
     "status": "pending",
     "totalPrice": 45.99,
     "createdAt": "2025-11-29T05:54:27.336Z",
     "updatedAt": "2025-11-29T05:54:27.336Z",
-    "orderItems": []
+    "orderItems": [
+      {
+        "id": "cmik0zxkp0018olchtn7aojbe",
+        "orderId": "cmijvmhzc0002vfbrbboilaqa",
+        "menuItemId": "cmijvregf0000l3e2bjrqn6of",
+        "quantity": 2,
+        "price": 12.99,
+        "modifiers": []
+      }
+    ]
   }
 ]
 ```
@@ -332,12 +385,74 @@ Update order status.
 {
   "id": "cmijvmhzc0002vfbrbboilaqa",
   "userId": "cmijvme530000vfbrywvfad2q",
+  "buttery": "Berkeley",
   "status": "preparing",
   "totalPrice": 45.99,
   "createdAt": "2025-11-29T05:54:27.336Z",
   "updatedAt": "2025-11-29T05:54:36.881Z",
   "orderItems": []
 }
+```
+
+### Butteries / Residential Colleges
+
+#### GET `/api/butteries`
+Get list of all butteries/residential colleges with item counts.
+
+**Response**:
+```json
+[
+  {
+    "name": "Berkeley",
+    "itemCount": 28
+  },
+  {
+    "name": "Branford",
+    "itemCount": 19
+  },
+  {
+    "name": "Davenport",
+    "itemCount": 17
+  },
+  {
+    "name": "Ezra Stiles",
+    "itemCount": 47
+  },
+  {
+    "name": "Timothy Dwight",
+    "itemCount": 29
+  }
+]
+```
+
+### Menu Items with Buttery Filter
+
+#### GET `/api/menu`
+Get all menu items, optionally filtered by buttery/residential college.
+
+**Query Parameters**:
+- `buttery` (optional): Filter items by residential college (e.g., `?buttery=Berkeley`)
+
+**Example**: `/api/menu?buttery=Berkeley`
+
+**Response**:
+```json
+[
+  {
+    "id": "cmik0zxkp0017olchtn7aojbe",
+    "name": "Ice Cream",
+    "description": "Sandwich, Drumstick, Bar, Fruit Bars",
+    "price": 1,
+    "category": "Dessert",
+    "available": true,
+    "hot": false,
+    "buttery": "Berkeley",
+    "image": null,
+    "createdAt": "2025-11-29T08:24:52.153Z",
+    "updatedAt": "2025-11-29T08:24:52.153Z",
+    "modifiers": []
+  }
+]
 ```
 
 ## Testing
@@ -387,21 +502,25 @@ curl http://localhost:3000/api/health
 
 ✅ User management (create users)
 ✅ Menu management (create items, add modifiers)
-✅ Menu browsing (get all items, filter by category)
-✅ Order creation and tracking
-✅ Order status management
-✅ Database persistence in Supabase
+✅ Menu browsing (get all items, filter by category or buttery)
+✅ Order creation with order items (full transaction)
+✅ Order tracking and status management
+✅ Buttery/residential college filtering for orders and menu
+✅ Buttery discovery (list all colleges with item counts)
+✅ Database persistence in Supabase PostgreSQL
+✅ CORS properly configured for frontend integration
 
 ## Next Steps
 
-- Add order items endpoints (add specific items to orders)
 - Implement authentication/JWT tokens for secure endpoints
-- Add input validation with Zod
+- Add input validation with Zod or similar
 - Add update/delete endpoints for menu items
-- Implement user registration with password hashing
-- Add error handling and status codes
+- Implement user registration with password hashing (bcrypt)
+- Add comprehensive error handling and proper status codes
+- Implement WebSocket for real-time order status updates
+- Add pagination for large menu/order lists
 - Deploy to production (Railway, Render, or Heroku)
-- Set up CORS properly for frontend integration
+- Set up monitoring and logging (Sentry, LogRocket)
 
 ## Troubleshooting
 

@@ -5,54 +5,62 @@ import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
 import { OrderManager } from './components/OrderManager';
 import { storage } from './utils/storage';
-import { mockMenuItems } from './utils/mockData';
 import { api } from './utils/api';
 import { Bell } from 'lucide-react';
 
 function App() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [cartItems, setCartItems] = useState<OrderItem[]>([]);
+  const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
+    const storedCart = storage.getCart();
+    return storedCart.items || [];
+  });
   const [notification, setNotification] = useState<string | null>(null);
   const [passToCustomerMode, setPassToCustomerMode] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
+  const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
+  const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>([ ]);
 
-  // Initialize data from cache-first strategy
+  // Initialize on mount
   useEffect(() => {
-    const loadMenuItems = async () => {
-      // 1. Load from localStorage cache immediately for fast UX
-      const cachedMenu = storage.getMenuItems();
-      if (cachedMenu.length > 0) {
-        setMenuItems(cachedMenu);
+    const init = async () => {
+      // Fetch buttery options
+      try {
+        const butteries = await api.fetchButteries();
+        setButteryOptions(butteries);
+      } catch (err) {
+        console.error('Failed to fetch butteries:', err);
       }
 
-      // 2. Fetch fresh data from API in background
+      // Fetch user's orders from backend
       try {
-        const freshMenu = await api.fetchMenuItems();
+        const userOrders = await api.fetchOrders('worker1');
+        setOrders(userOrders);
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+        setOrders([]);
+      }
+    };
+
+    init();
+  }, []);
+
+  // Load menu items when buttery changes
+  useEffect(() => {
+    const loadMenuItems = async () => {
+      try {
+        const freshMenu = await api.fetchMenuItems(selectedButtery || undefined);
         setMenuItems(freshMenu);
-        storage.setMenuItems(freshMenu); // Update cache
       } catch (error) {
         console.error('Failed to fetch menu from API:', error);
-
-        // 3. If no cache and API fails, fall back to mock data
-        if (cachedMenu.length === 0) {
-          console.warn('Using mock data as fallback');
-          storage.setMenuItems(mockMenuItems);
-          setMenuItems(mockMenuItems);
-        }
+        setNotification(`Error loading menu: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setMenuItems([]);
       }
     };
 
     loadMenuItems();
-
-    // Initialize orders and cart
-    const storedOrders = storage.getOrders();
-    setOrders(storedOrders);
-
-    const storedCart = storage.getCart();
-    setCartItems(storedCart.items || []);
-  }, []);
+  }, [selectedButtery]);
 
   // Simulate real-time order updates
   useEffect(() => {
@@ -90,29 +98,33 @@ function App() {
   const calculateTotal = (items: OrderItem[]) =>
     items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cartItems.length === 0) {
       setNotification('Cart is empty');
       return;
     }
 
-    const newOrder: Order = {
-      id: `ORD-${Date.now().toString(36).toUpperCase()}`,
-      netId: 'worker1',
-      items: cartItems,
-      totalPrice: calculateTotal(cartItems),
-      status: 'pending',
-      placedAt: Date.now(),
-    };
+    try {
+      const totalPrice = calculateTotal(cartItems);
+      const newOrder = await api.createOrder(
+        'worker1',
+        cartItems,
+        totalPrice,
+        selectedButtery || undefined
+      );
 
-    const newOrders = [...orders, newOrder];
-    setOrders(newOrders);
-    storage.setOrders(newOrders);
-    setCartItems([]);
-    storage.setCart({ items: [], total: 0 });
-    setIsCartOpen(false);
-    setNotification(`Order ${newOrder.id} placed!`);
-    setTimeout(() => setNotification(null), 3000);
+      const newOrders = [...orders, newOrder];
+      setOrders(newOrders);
+      setCartItems([]);
+      storage.setCart({ items: [], total: 0 });
+      setIsCartOpen(false);
+      setNotification(`Order ${newOrder.id} placed!`);
+      setTimeout(() => setNotification(null), 3000);
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      setNotification('Failed to place order');
+      setTimeout(() => setNotification(null), 3000);
+    }
   };
 
   const handlePassToCustomer = () => {
@@ -125,24 +137,40 @@ function App() {
     return () => clearTimeout(timer);
   };
 
-  const handleUpdateOrder = (id: string, status: Order['status']) => {
-    const newOrders = orders.map(o =>
-      o.id === id ? { ...o, status, completedAt: status === 'completed' ? Date.now() : o.completedAt } : o
-    );
-    setOrders(newOrders);
-    storage.setOrders(newOrders);
+  const handleUpdateOrder = async (id: string, status: Order['status']) => {
+    try {
+      const updatedOrder = await api.updateOrderStatus(id, status);
+      const newOrders = orders.map(o => o.id === id ? updatedOrder : o);
+      setOrders(newOrders);
 
-    if (status === 'ready') {
-      setNotification('Order ready for pickup!');
-    } else if (status === 'completed') {
-      setNotification('Order completed!');
+      if (status === 'ready') {
+        setNotification('Order ready for pickup!');
+      } else if (status === 'completed') {
+        setNotification('Order completed!');
+      }
+      setTimeout(() => setNotification(null), 2000);
+    } catch (error) {
+      console.error('Failed to update order:', error);
+      setNotification('Failed to update order');
+      setTimeout(() => setNotification(null), 2000);
     }
-    setTimeout(() => setNotification(null), 2000);
   };
+
+  const handleButteryChange = (buttery: string | null) => {
+    setSelectedButtery(buttery);
+    storage.setSelectedButtery(buttery);
+    // Clear cart when switching butteries
+    setCartItems([]);
+    storage.setCart({ items: [], total: 0 });
+  };
+
+  const filteredOrders = selectedButtery
+    ? orders.filter(o => o.buttery === selectedButtery)
+    : orders;
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
-      <Header />
+      <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
 
       {/* Notification Overlay */}
       {notification && (
@@ -199,7 +227,7 @@ function App() {
 
         {/* Right Side - Order Manager */}
         <div style={{ flex: `0 0 ${100 - leftPanelWidth}%` }} className="flex flex-col min-w-0">
-          <OrderManager orders={orders} onUpdateOrder={handleUpdateOrder} />
+          <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
         </div>
       </div>
 

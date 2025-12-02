@@ -31,7 +31,7 @@ app.get("/api/health", async (req: Request, res: Response) => {
   try {
     const result = await prisma.$queryRaw`SELECT 1 as ping`;
     res.json({ status: "Database connected", ping: result });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Database connection failed" });
   }
 });
@@ -54,20 +54,23 @@ app.post("/api/users", async (req: Request, res: Response) => {
       },
     });
     res.status(201).json(user);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to create user" });
   }
 });
 
-// Get all menu items
+// Get all menu items (with optional buttery filter)
 app.get("/api/menu", async (req: Request, res: Response) => {
   try {
+    const { buttery } = req.query;
+
     const items = await prisma.menuItem.findMany({
+      where: buttery ? { buttery: buttery as string } : undefined,
       include: { modifiers: true },
       orderBy: { category: "asc" },
     });
     res.json(items);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch menu items" });
   }
 });
@@ -94,7 +97,7 @@ app.post("/api/menu", async (req: Request, res: Response) => {
       include: { modifiers: true },
     });
     res.status(201).json(item);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to create menu item" });
   }
 });
@@ -108,7 +111,7 @@ app.get("/api/menu/category/:category", async (req: Request, res: Response) => {
       include: { modifiers: true },
     });
     res.json(items);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch menu items" });
   }
 });
@@ -128,7 +131,7 @@ app.get("/api/menu/:itemId", async (req: Request, res: Response) => {
     }
 
     res.json(item);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch menu item" });
   }
 });
@@ -153,7 +156,7 @@ app.post("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
       },
     });
     res.status(201).json(modifier);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to create modifier" });
   }
 });
@@ -166,15 +169,20 @@ app.get("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
       where: { menuItemId: itemId },
     });
     res.json(modifiers);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch modifiers" });
   }
 });
 
-// Create a new order
+// Create a new order with items
 app.post("/api/orders", async (req: Request, res: Response) => {
   try {
-    const { userId, totalPrice } = req.body;
+    const { userId, totalPrice, buttery, items } = req.body as {
+      userId: string;
+      totalPrice: number;
+      buttery?: string;
+      items?: Array<{ menuItemId: string; quantity: number; price: number }>;
+    };
 
     if (!userId || typeof totalPrice !== "number") {
       res.status(400).json({ error: "Missing required fields" });
@@ -185,27 +193,44 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       data: {
         userId,
         totalPrice,
+        buttery: buttery || null,
         status: "pending",
+        orderItems: {
+          create: items?.map((item) => ({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            price: item.price,
+          })) || [],
+        },
       },
-      include: { orderItems: true },
+      include: {
+        orderItems: {
+          include: { modifiers: true },
+        },
+      },
     });
     res.status(201).json(order);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to create order" });
   }
 });
 
-// Get user's orders
+// Get user's orders (with optional buttery filter)
 app.get("/api/users/:userId/orders", async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+    const { buttery } = req.query;
+
     const orders = await prisma.order.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(buttery && { buttery: buttery as string }),
+      },
       include: { orderItems: { include: { modifiers: true } } },
       orderBy: { createdAt: "desc" },
     });
     res.json(orders);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch orders" });
   }
 });
@@ -227,8 +252,31 @@ app.patch("/api/orders/:orderId", async (req: Request, res: Response) => {
       include: { orderItems: true },
     });
     res.json(order);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to update order" });
+  }
+});
+
+// Get list of all butteries
+app.get("/api/butteries", async (_req: Request, res: Response) => {
+  try {
+    const butteries = await prisma.menuItem.groupBy({
+      by: ["buttery"],
+      _count: true,
+    });
+
+    // Filter out nulls and format response
+    const formatted = butteries
+      .filter(b => b.buttery !== null)
+      .map(b => ({
+        name: b.buttery,
+        itemCount: b._count,
+      }))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    res.json(formatted);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch butteries" });
   }
 });
 

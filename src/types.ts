@@ -14,6 +14,7 @@ export interface MenuItem {
   disabled: boolean;
   image?: string;
   description?: string;
+  buttery?: string | null;
   modifiers: Modifier[];
 }
 
@@ -28,6 +29,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   netId: string;
+  buttery?: string | null;
   items: OrderItem[];
   totalPrice: number;
   status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
