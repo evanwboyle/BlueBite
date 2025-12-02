@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Order } from '../types';
 import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { yalies, type YaliesUser } from '../utils/yalies';
 
 interface OrderManagerProps {
   orders: Order[];
@@ -11,6 +12,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [yaliesCache, setYaliesCache] = useState<Map<string, YaliesUser | null>>(new Map());
 
   // Filter to past 12 hours and sort oldest to newest
   const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -27,6 +29,39 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
 
   // Apply hideCompleted filter for display
   const sortedOrders = ordersWithinPast12h.filter(o => !hideCompleted || o.status !== 'completed');
+
+  // Fetch Yalies user data for orders
+  useEffect(() => {
+    const fetchYaliesData = async () => {
+      const newCache = new Map(yaliesCache);
+      let cacheUpdated = false;
+
+      for (const order of ordersWithinPast12h) {
+        if (!newCache.has(order.netId)) {
+          const user = await yalies.fetchUserByNetId(order.netId);
+          newCache.set(order.netId, user);
+          cacheUpdated = true;
+        }
+      }
+
+      if (cacheUpdated) {
+        setYaliesCache(newCache);
+      }
+    };
+
+    if (ordersWithinPast12h.length > 0) {
+      fetchYaliesData();
+    }
+  }, [ordersWithinPast12h.map(o => o.netId).join(',')]); // Dependency on unique netIds
+
+  const getCustomerDisplayName = (netId: string): string => {
+    const user = yaliesCache.get(netId);
+    if (user) {
+      const lastInitial = user.last_name.charAt(0).toUpperCase();
+      return `${user.first_name} ${lastInitial}`;
+    }
+    return netId;
+  };
 
   const statusColors: Record<Order['status'], string> = {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -113,7 +148,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                       </span>
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
-                      <span>Customer: <span className="font-medium">{order.netId}</span></span>
+                      <span>Customer: <span className="font-medium">{getCustomerDisplayName(order.netId)}</span></span>
                       <span>${order.totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
@@ -127,6 +162,19 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                 {/* Order Details */}
                 {expandedOrder === order.id && (
                   <div className="bg-gray-50 p-3 border-t space-y-3">
+                    {/* Customer Profile Image */}
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={yaliesCache.get(order.netId)?.image || '/src/assets/no_image.png'}
+                        alt={getCustomerDisplayName(order.netId)}
+                        className="w-16 h-16 rounded-full object-cover bg-gray-200"
+                      />
+                      <div>
+                        <p className="text-xs font-bold text-gray-900">{getCustomerDisplayName(order.netId)}</p>
+                        <p className="text-xs text-gray-600">{order.netId}</p>
+                      </div>
+                    </div>
+
                     {/* Items */}
                     <div>
                       <h4 className="text-xs font-bold text-gray-900 mb-2 uppercase">Items</h4>

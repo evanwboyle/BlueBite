@@ -116,7 +116,20 @@ function App() {
         selectedButtery || undefined
       );
 
-      const newOrders = [...orders, newOrder];
+      // Enrich new order with menu item names
+      const menuItemMap = new Map(menuItems.map(item => [item.id, item]));
+      const enrichedOrder = {
+        ...newOrder,
+        items: (newOrder.items || []).map(item => {
+          const menuItem = menuItemMap.get(item.menuItemId);
+          return {
+            ...item,
+            name: menuItem?.name || item.name || 'Unknown Item',
+          };
+        }),
+      };
+
+      const newOrders = [...orders, enrichedOrder];
       setOrders(newOrders);
       setCartItems([]);
       storage.setCart({ items: [], total: 0 });
