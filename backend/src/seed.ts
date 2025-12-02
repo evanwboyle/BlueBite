@@ -12,98 +12,6 @@ interface YaleMenuItem {
   'Residential College': string;
 }
 
-// Categories that are typically hot/served warm
-const HOT_CATEGORIES = new Set([
-  'Main',
-  'Entree',
-  'Entrees',
-  'Pizza',
-  'Sandwich',
-  'Sandwiches',
-  'Burger',
-  'Burgers',
-  'Chicken',
-  'Hot Dog',
-  'Hot Dogs',
-  'Sides',
-  'Side',
-  'Snack',
-  'Snacks',
-  'Appetizer',
-  'Appetizers',
-  'Wings',
-  'Fried',
-  'Fried Foods',
-  'Hot Entrée',
-  'Hot Entrees',
-  'Hot Items',
-  'Pasta',
-  'Noodles',
-  'Asian',
-  'Mexican',
-  'Tacos',
-  'Burritos',
-  'Quesadilla',
-  'Quesadillas',
-  'Fries',
-  'Fried Chicken',
-  'Nuggets',
-  'Tenders',
-]);
-
-function determineIfHot(category: string): boolean {
-  // Check if category (case-insensitive) matches hot categories
-  return Array.from(HOT_CATEGORIES).some(
-    hotCat => category.toLowerCase().includes(hotCat.toLowerCase())
-  );
-}
-
-function standardizeCategory(category: string): string {
-  const normalized = category.toLowerCase().trim();
-
-  // Standardize to broader categories
-  if (HOT_CATEGORIES.has(category) || normalized.includes('main') ||
-      normalized.includes('entree') || normalized.includes('sandwich') ||
-      normalized.includes('pizza') || normalized.includes('burger') ||
-      normalized.includes('chicken') || normalized.includes('hot dog') ||
-      normalized.includes('fries') || normalized.includes('wings') ||
-      normalized.includes('taco') || normalized.includes('burrito') ||
-      normalized.includes('quesadilla') || normalized.includes('nugget') ||
-      normalized.includes('tender') || normalized.includes('pasta') ||
-      normalized.includes('noodle') || normalized.includes('asian') ||
-      normalized.includes('mexican') || normalized.includes('fried')) {
-    return 'Main';
-  }
-
-  if (normalized.includes('salad') || normalized.includes('lettuce')) {
-    return 'Salad';
-  }
-
-  if (normalized.includes('side') || normalized.includes('fries')) {
-    return 'Side';
-  }
-
-  if (normalized.includes('drink') || normalized.includes('beverage') ||
-      normalized.includes('soda') || normalized.includes('juice') ||
-      normalized.includes('water') || normalized.includes('coffee') ||
-      normalized.includes('tea') || normalized.includes('milk')) {
-    return 'Drinks';
-  }
-
-  if (normalized.includes('dessert') || normalized.includes('sweet') ||
-      normalized.includes('cookie') || normalized.includes('brownie') ||
-      normalized.includes('cake') || normalized.includes('ice cream') ||
-      normalized.includes('chocolate')) {
-    return 'Dessert';
-  }
-
-  if (normalized.includes('snack') || normalized.includes('appetizer')) {
-    return 'Snack';
-  }
-
-  // Default category
-  return 'Main';
-}
 
 async function seed() {
   try {
@@ -152,19 +60,15 @@ async function seed() {
             continue;
           }
 
-          // Determine if hot/cold
-          const hot = determineIfHot(item.Category);
-          const category = standardizeCategory(item.Category);
-
           // Create menu item
           await prisma.menuItem.create({
             data: {
               name: item.Name.trim(),
               description: item.Description ? item.Description.trim() : null,
               price,
-              category,
+              category: 'Main',
               available: true,
-              hot,
+              hot: false,
               buttery: item['Residential College'] || null,
             },
           });
@@ -200,17 +104,6 @@ async function seed() {
     console.log(`\n📊 Items by category:`);
     categoryStats.forEach(stat => {
       console.log(`   ${stat.category}: ${stat._count}`);
-    });
-
-    // Show hot/cold distribution
-    const hotStats = await prisma.menuItem.groupBy({
-      by: ['hot'],
-      _count: true,
-    });
-
-    console.log(`\n🔥 Hot/Cold distribution:`);
-    hotStats.forEach(stat => {
-      console.log(`   ${stat.hot ? '🔥 Hot' : '❄️  Cold'}: ${stat._count}`);
     });
   } catch (error) {
     console.error('❌ Seed failed:', error);

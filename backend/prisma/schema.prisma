@@ -7,11 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication
+// User model - identified by NetID
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
+  netId     String   @id // Yale NetID (e.g., "abc123")
   name      String?
   role      String   @default("customer") // customer, staff, admin
   createdAt DateTime @default(now())
@@ -59,17 +57,17 @@ model Modifier {
 // Order model
 model Order {
   id          String   @id @default(cuid())
-  userId      String
+  netId       String
   buttery     String?
   status      String   @default("pending") // pending, preparing, ready, completed, cancelled
   totalPrice  Float
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [netId], references: [netId], onDelete: Cascade)
   orderItems OrderItem[]
 
-  @@index([userId])
+  @@index([netId])
   @@index([status])
   @@index([buttery])
 }

@@ -110,7 +110,7 @@ export const api = {
    * Create a new order on the backend
    */
   async createOrder(
-    userId: string,
+    netId: string,
     items: OrderItem[],
     totalPrice: number,
     buttery?: string
@@ -123,7 +123,7 @@ export const api = {
         },
         credentials: 'include',
         body: JSON.stringify({
-          userId,
+          netId,
           totalPrice,
           buttery: buttery || null,
           items: items.map(item => ({
@@ -141,7 +141,7 @@ export const api = {
       const order = await response.json();
       return {
         id: order.id,
-        netId: userId,
+        netId: order.netId,
         buttery: order.buttery,
         items: order.orderItems || [],
         totalPrice: order.totalPrice,
@@ -151,6 +151,65 @@ export const api = {
       };
     } catch (error) {
       console.error('API Error - Failed to create order:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Fetch all orders (staff/admin view), optionally filtered by buttery
+   */
+  async fetchAllOrders(buttery?: string): Promise<Order[]> {
+    try {
+      const url = buttery
+        ? `${API_BASE_URL}/orders?buttery=${encodeURIComponent(buttery)}`
+        : `${API_BASE_URL}/orders`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      interface BackendOrderItem {
+        id: string;
+        orderId: string;
+        menuItemId: string;
+        quantity: number;
+        price: number;
+        createdAt: string;
+        updatedAt: string;
+        modifiers: unknown[];
+      }
+
+      interface BackendOrder {
+        id: string;
+        netId: string;
+        buttery: string | null;
+        status: string;
+        totalPrice: number;
+        createdAt: string;
+        updatedAt: string;
+        orderItems: BackendOrderItem[];
+      }
+      const orders: BackendOrder[] = await response.json();
+      return orders.map((o) => ({
+        id: o.id,
+        netId: o.netId,
+        buttery: o.buttery,
+        items: (o.orderItems || []) as unknown as OrderItem[],
+        totalPrice: o.totalPrice,
+        status: o.status as Order['status'],
+        placedAt: new Date(o.createdAt).getTime(),
+        completedAt: o.updatedAt ? new Date(o.updatedAt).getTime() : undefined,
+      }));
+    } catch (error) {
+      console.error('API Error - Failed to fetch all orders:', error);
       throw error;
     }
   },
@@ -189,7 +248,7 @@ export const api = {
 
       interface BackendOrder {
         id: string;
-        userId: string;
+        netId: string;
         buttery: string | null;
         status: string;
         totalPrice: number;
@@ -200,7 +259,7 @@ export const api = {
       const orders: BackendOrder[] = await response.json();
       return orders.map((o) => ({
         id: o.id,
-        netId: o.userId,
+        netId: o.netId,
         buttery: o.buttery,
         items: (o.orderItems || []) as unknown as OrderItem[],
         totalPrice: o.totalPrice,
@@ -210,6 +269,30 @@ export const api = {
       }));
     } catch (error) {
       console.error('API Error - Failed to fetch orders:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Fetch orders and enrich with menu item names
+   */
+  async fetchOrdersWithMenuNames(userId: string, menuItems: MenuItem[], buttery?: string): Promise<Order[]> {
+    try {
+      const orders = await this.fetchOrders(userId, buttery);
+      const menuItemMap = new Map(menuItems.map(item => [item.id, item]));
+
+      return orders.map((o) => ({
+        ...o,
+        items: (o.items || []).map(item => {
+          const menuItem = menuItemMap.get(item.menuItemId);
+          return {
+            ...item,
+            name: menuItem?.name || item.name || 'Unknown Item',
+          };
+        }),
+      }));
+    } catch (error) {
+      console.error('API Error - Failed to fetch orders with menu names:', error);
       throw error;
     }
   },
@@ -235,7 +318,7 @@ export const api = {
       const order = await response.json();
       return {
         id: order.id,
-        netId: order.userId,
+        netId: order.netId,
         buttery: order.buttery,
         items: order.orderItems || [],
         totalPrice: order.totalPrice,

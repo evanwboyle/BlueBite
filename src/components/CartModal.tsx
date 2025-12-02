@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { OrderItem } from '../types';
 import { X, Trash2, ShoppingCart } from 'lucide-react';
 
@@ -5,7 +6,7 @@ interface CartModalProps {
   items: OrderItem[];
   onClose: () => void;
   onRemoveItem: (index: number) => void;
-  onCheckout: () => void;
+  onCheckout: (netId: string) => void;
   onPassToCustomer?: () => void;
 }
 
@@ -15,7 +16,18 @@ export function CartModal({
   onRemoveItem,
   onCheckout,
 }: CartModalProps) {
+  const [netId, setNetId] = useState('');
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const handlePlaceOrder = () => {
+    if (!netId.trim()) {
+      alert('Please enter your NetID');
+      return;
+    }
+    onCheckout(netId);
+    setNetId('');
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }} onClick={onClose}>
@@ -79,7 +91,7 @@ export function CartModal({
           )}
         </div>
 
-        {/* Footer with Total and Action Buttons */}
+        {/* Footer with NetID Input and Total */}
         {items.length > 0 && (
           <div className="sticky bottom-0 border-t p-6 bg-gray-50 space-y-4">
             <div className="flex justify-between items-center">
@@ -87,11 +99,30 @@ export function CartModal({
               <span className="text-2xl font-bold text-blue-600">${total.toFixed(2)}</span>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter your NetID
+              </label>
+              <input
+                type="text"
+                value={netId}
+                onChange={(e) => setNetId(e.target.value)}
+                placeholder="e.g., abc123"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handlePlaceOrder();
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+
             <button
-              onClick={onCheckout}
+              onClick={handlePlaceOrder}
               className="btn-primary w-full py-3 text-base"
             >
-              Confirm Order
+              Place Order
             </button>
           </div>
         )}

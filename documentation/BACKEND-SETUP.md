@@ -12,16 +12,25 @@
 
 ## Recent Updates (December 2025)
 
+### NetID-Based User Management
+- ✅ Users identified by NetID (Yale Net ID) instead of email/password
+- ✅ No password required - NetID serves as unique identifier
+- ✅ Users are automatically created on first order with `netId` as primary key
+- ✅ Staff/admin can view all orders regardless of which NetID placed them
+
 ### Server-Side Implementation
 - ✅ Orders are now fully stored in the database (not localStorage)
 - ✅ Order creation accepts order items in a single transaction
 - ✅ Buttery/residential college filtering for menus and orders
 - ✅ New `/api/butteries` endpoint to discover available colleges with item counts
+- ✅ New `/api/orders` endpoint returns all orders (staff/admin view)
 - ✅ All data is persisted to PostgreSQL - no mock data fallbacks
+- ✅ Automatic user creation via `upsert` when placing orders with new NetID
 
 ### Frontend Integration
 - ✅ Frontend fetches all data from backend API
-- ✅ No localStorage cache for menu items
+- ✅ NetID input required before placing orders
+- ✅ Orders persist across page refreshes
 - ✅ Error handling shows API issues immediately
 - ✅ CORS properly configured for localhost:5173
 
@@ -109,13 +118,12 @@ Test database connection.
 ### Users
 
 #### POST `/api/users`
-Create a new user.
+Create a new user by NetID.
 
 **Request Body**:
 ```json
 {
-  "email": "user@example.com",
-  "password": "hashedPassword123",
+  "netId": "abc123",
   "name": "John Doe"
 }
 ```
@@ -123,15 +131,15 @@ Create a new user.
 **Response** (201):
 ```json
 {
-  "id": "cmijvme530000vfbrywvfad2q",
-  "email": "user@example.com",
-  "password": "hashedPassword123",
+  "netId": "abc123",
   "name": "John Doe",
   "role": "customer",
-  "createdAt": "2025-11-29T05:54:22.359Z",
-  "updatedAt": "2025-11-29T05:54:22.359Z"
+  "createdAt": "2025-12-02T20:35:43.432Z",
+  "updatedAt": "2025-12-02T20:35:43.432Z"
 }
 ```
+
+**Note**: Users are automatically created when placing an order with a new NetID, so explicit user creation is optional.
 
 ### Menu Items
 
@@ -289,14 +297,14 @@ Get all modifiers for a specific menu item.
 ### Orders
 
 #### POST `/api/orders`
-Create a new order with items.
+Create a new order with items. Automatically creates user if NetID doesn't exist.
 
 **Request Body**:
 ```json
 {
-  "userId": "cmijvme530000vfbrywvfad2q",
+  "netId": "ewb28",
   "totalPrice": 45.99,
-  "buttery": "Berkeley",
+  "buttery": "Branford",
   "items": [
     {
       "menuItemId": "cmijvregf0000l3e2bjrqn6of",
@@ -315,17 +323,17 @@ Create a new order with items.
 **Response** (201):
 ```json
 {
-  "id": "cmijvmhzc0002vfbrbboilaqa",
-  "userId": "cmijvme530000vfbrywvfad2q",
-  "buttery": "Berkeley",
+  "id": "cmip1i4dk0009rdvyvboq151e",
+  "netId": "ewb28",
+  "buttery": "Branford",
   "status": "pending",
   "totalPrice": 45.99,
-  "createdAt": "2025-11-29T05:54:27.336Z",
-  "updatedAt": "2025-11-29T05:54:27.336Z",
+  "createdAt": "2025-12-02T20:37:51.656Z",
+  "updatedAt": "2025-12-02T20:37:51.656Z",
   "orderItems": [
     {
-      "id": "cmik0zxkp0018olchtn7aojbe",
-      "orderId": "cmijvmhzc0002vfbrbboilaqa",
+      "id": "cmip1i4dk000brdvy8sfcs4tc",
+      "orderId": "cmip1i4dk0009rdvyvboq151e",
       "menuItemId": "cmijvregf0000l3e2bjrqn6of",
       "quantity": 2,
       "price": 12.99,
@@ -335,29 +343,64 @@ Create a new order with items.
 }
 ```
 
-#### GET `/api/users/:userId/orders`
-Get all orders for a specific user, optionally filtered by buttery.
+#### GET `/api/orders`
+Get all orders (staff/admin view), optionally filtered by buttery.
 
 **Query Parameters**:
-- `buttery` (optional): Filter orders by residential college (e.g., `?buttery=Berkeley`)
+- `buttery` (optional): Filter orders by residential college (e.g., `?buttery=Branford`)
 
-**Example**: `/api/users/cmijvme530000vfbrywvfad2q/orders?buttery=Berkeley`
+**Example**: `/api/orders?buttery=Branford`
 
 **Response**:
 ```json
 [
   {
-    "id": "cmijvmhzc0002vfbrbboilaqa",
-    "userId": "cmijvme530000vfbrywvfad2q",
-    "buttery": "Berkeley",
-    "status": "pending",
-    "totalPrice": 45.99,
-    "createdAt": "2025-11-29T05:54:27.336Z",
-    "updatedAt": "2025-11-29T05:54:27.336Z",
+    "id": "cmip1i4dk0009rdvyvboq151e",
+    "netId": "ewb28",
+    "buttery": "Branford",
+    "status": "ready",
+    "totalPrice": 2,
+    "createdAt": "2025-12-02T20:37:51.656Z",
+    "updatedAt": "2025-12-02T20:38:37.770Z",
     "orderItems": [
       {
-        "id": "cmik0zxkp0018olchtn7aojbe",
-        "orderId": "cmijvmhzc0002vfbrbboilaqa",
+        "id": "cmip1i4dk000brdvy8sfcs4tc",
+        "orderId": "cmip1i4dk0009rdvyvboq151e",
+        "menuItemId": "cmip15eew001heuyesnva45f7",
+        "quantity": 1,
+        "price": 2,
+        "createdAt": "2025-12-02T20:37:51.656Z",
+        "updatedAt": "2025-12-02T20:37:51.656Z",
+        "modifiers": []
+      }
+    ]
+  }
+]
+```
+
+#### GET `/api/users/:netId/orders`
+Get all orders for a specific NetID, optionally filtered by buttery.
+
+**Query Parameters**:
+- `buttery` (optional): Filter orders by residential college (e.g., `?buttery=Branford`)
+
+**Example**: `/api/users/ewb28/orders?buttery=Branford`
+
+**Response**:
+```json
+[
+  {
+    "id": "cmip1i4dk0009rdvyvboq151e",
+    "netId": "ewb28",
+    "buttery": "Branford",
+    "status": "pending",
+    "totalPrice": 45.99,
+    "createdAt": "2025-12-02T20:37:51.656Z",
+    "updatedAt": "2025-12-02T20:37:51.656Z",
+    "orderItems": [
+      {
+        "id": "cmip1i4dk000brdvy8sfcs4tc",
+        "orderId": "cmip1i4dk0009rdvyvboq151e",
         "menuItemId": "cmijvregf0000l3e2bjrqn6of",
         "quantity": 2,
         "price": 12.99,
@@ -383,13 +426,13 @@ Update order status.
 **Response**:
 ```json
 {
-  "id": "cmijvmhzc0002vfbrbboilaqa",
-  "userId": "cmijvme530000vfbrywvfad2q",
-  "buttery": "Berkeley",
+  "id": "cmip1i4dk0009rdvyvboq151e",
+  "netId": "ewb28",
+  "buttery": "Branford",
   "status": "preparing",
   "totalPrice": 45.99,
-  "createdAt": "2025-11-29T05:54:27.336Z",
-  "updatedAt": "2025-11-29T05:54:36.881Z",
+  "createdAt": "2025-12-02T20:37:51.656Z",
+  "updatedAt": "2025-12-02T20:38:10.123Z",
   "orderItems": []
 }
 ```
@@ -460,10 +503,10 @@ Get all menu items, optionally filtered by buttery/residential college.
 You can test endpoints using curl:
 
 ```bash
-# Create a user
+# Create a user by NetID (optional - users auto-create on order)
 curl -X POST http://localhost:3000/api/users \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"pass123","name":"Test User"}'
+  -d '{"netId":"abc123","name":"Test User"}'
 
 # Create a menu item
 curl -X POST http://localhost:3000/api/menu \
@@ -478,21 +521,41 @@ curl -X POST http://localhost:3000/api/menu/ITEM_ID/modifiers \
 # Get all menu items
 curl http://localhost:3000/api/menu
 
+# Get menu items by buttery
+curl http://localhost:3000/api/menu?buttery=Branford
+
 # Get menu items by category
 curl http://localhost:3000/api/menu/category/Sandwiches
 
-# Create an order
+# Create an order (auto-creates user if NetID doesn't exist)
 curl -X POST http://localhost:3000/api/orders \
   -H "Content-Type: application/json" \
-  -d '{"userId":"YOUR_USER_ID","totalPrice":25.50}'
+  -d '{
+    "netId":"ewb28",
+    "totalPrice":25.50,
+    "buttery":"Branford",
+    "items":[{"menuItemId":"ITEM_ID","quantity":1,"price":25.50}]
+  }'
 
-# Get user's orders
-curl http://localhost:3000/api/users/YOUR_USER_ID/orders
+# Get all orders (staff/admin view)
+curl http://localhost:3000/api/orders
+
+# Get all orders for a specific buttery
+curl http://localhost:3000/api/orders?buttery=Branford
+
+# Get user's orders by NetID
+curl http://localhost:3000/api/users/ewb28/orders
+
+# Get user's orders by NetID and buttery
+curl http://localhost:3000/api/users/ewb28/orders?buttery=Branford
 
 # Update order status
 curl -X PATCH http://localhost:3000/api/orders/YOUR_ORDER_ID \
   -H "Content-Type: application/json" \
   -d '{"status":"ready"}'
+
+# Get all butteries
+curl http://localhost:3000/api/butteries
 
 # Get health status
 curl http://localhost:3000/api/health
@@ -500,10 +563,14 @@ curl http://localhost:3000/api/health
 
 ## Current Capabilities
 
-✅ User management (create users)
+✅ NetID-based user management (automatic user creation on first order)
+✅ User creation by NetID (no password required)
 ✅ Menu management (create items, add modifiers)
 ✅ Menu browsing (get all items, filter by category or buttery)
 ✅ Order creation with order items (full transaction)
+✅ Automatic user upsert when placing orders with new NetID
+✅ Staff/admin order view (GET `/api/orders` returns all orders)
+✅ User-specific order view (GET `/api/users/:netId/orders`)
 ✅ Order tracking and status management
 ✅ Buttery/residential college filtering for orders and menu
 ✅ Buttery discovery (list all colleges with item counts)

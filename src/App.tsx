@@ -32,15 +32,6 @@ function App() {
       } catch (err) {
         console.error('Failed to fetch butteries:', err);
       }
-
-      // Fetch user's orders from backend
-      try {
-        const userOrders = await api.fetchOrders('worker1');
-        setOrders(userOrders);
-      } catch (err) {
-        console.error('Failed to fetch orders:', err);
-        setOrders([]);
-      }
     };
 
     init();
@@ -62,24 +53,36 @@ function App() {
     loadMenuItems();
   }, [selectedButtery]);
 
-  // Simulate real-time order updates
+  // Fetch all orders (staff/admin view) after menu items are loaded
   useEffect(() => {
-    const interval = setInterval(() => {
-      setOrders(prevOrders =>
-        prevOrders.map(order => {
-          if (order.status === 'pending' && Math.random() > 0.7) {
-            return { ...order, status: 'preparing' };
-          }
-          if (order.status === 'preparing' && Math.random() > 0.8) {
-            return { ...order, status: 'ready' };
-          }
-          return order;
-        })
-      );
-    }, 5000);
+    const loadOrders = async () => {
+      try {
+        console.log('Fetching all orders for buttery:', selectedButtery);
+        const allOrders = await api.fetchAllOrders(selectedButtery || undefined);
+        console.log('Orders fetched:', allOrders);
 
-    return () => clearInterval(interval);
-  }, []);
+        // Enrich orders with menu item names
+        const menuItemMap = new Map(menuItems.map(item => [item.id, item]));
+        const enrichedOrders = allOrders.map((o) => ({
+          ...o,
+          items: (o.items || []).map(item => {
+            const menuItem = menuItemMap.get(item.menuItemId);
+            return {
+              ...item,
+              name: menuItem?.name || item.name || 'Unknown Item',
+            };
+          }),
+        }));
+
+        setOrders(enrichedOrders);
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+        setOrders([]);
+      }
+    };
+
+    loadOrders();
+  }, [menuItems, selectedButtery]);
 
   const handleAddToCart = (item: OrderItem) => {
     const newCart = [...cartItems, item];
@@ -98,7 +101,7 @@ function App() {
   const calculateTotal = (items: OrderItem[]) =>
     items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (netId: string) => {
     if (cartItems.length === 0) {
       setNotification('Cart is empty');
       return;
@@ -107,7 +110,7 @@ function App() {
     try {
       const totalPrice = calculateTotal(cartItems);
       const newOrder = await api.createOrder(
-        'worker1',
+        netId,
         cartItems,
         totalPrice,
         selectedButtery || undefined

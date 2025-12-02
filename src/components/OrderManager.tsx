@@ -125,7 +125,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                               <span>{item.name} x{item.quantity}</span>
                               <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
                             </div>
-                            {item.modifiers.length > 0 && (
+                            {item.modifiers && item.modifiers.length > 0 && (
                               <div className="text-gray-600 ml-2 text-xs">
                                 {item.modifiers.join(', ')}
                               </div>

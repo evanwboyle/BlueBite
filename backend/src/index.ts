@@ -36,21 +36,20 @@ app.get("/api/health", async (req: Request, res: Response) => {
   }
 });
 
-// Create a test user
+// Create a user by NetID
 app.post("/api/users", async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const { netId, name } = req.body;
 
-    if (!email || !password) {
-      res.status(400).json({ error: "Email and password required" });
+    if (!netId) {
+      res.status(400).json({ error: "NetID is required" });
       return;
     }
 
     const user = await prisma.user.create({
       data: {
-        email,
-        password,
-        name: name || email.split("@")[0],
+        netId,
+        name: name || null,
       },
     });
     res.status(201).json(user);
@@ -70,8 +69,9 @@ app.get("/api/menu", async (req: Request, res: Response) => {
       orderBy: { category: "asc" },
     });
     res.json(items);
-  } catch {
-    res.status(500).json({ error: "Failed to fetch menu items" });
+  } catch (error) {
+    console.error("Menu fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch menu items", details: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -174,24 +174,31 @@ app.get("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
   }
 });
 
-// Create a new order with items
+// Create a new order with items (auto-creates user if doesn't exist)
 app.post("/api/orders", async (req: Request, res: Response) => {
   try {
-    const { userId, totalPrice, buttery, items } = req.body as {
-      userId: string;
+    const { netId, totalPrice, buttery, items } = req.body as {
+      netId: string;
       totalPrice: number;
       buttery?: string;
       items?: Array<{ menuItemId: string; quantity: number; price: number }>;
     };
 
-    if (!userId || typeof totalPrice !== "number") {
-      res.status(400).json({ error: "Missing required fields" });
+    if (!netId || typeof totalPrice !== "number") {
+      res.status(400).json({ error: "Missing required fields: netId and totalPrice" });
       return;
     }
 
+    // Auto-create user if they don't exist
+    await prisma.user.upsert({
+      where: { netId },
+      update: { updatedAt: new Date() },
+      create: { netId, role: "customer" },
+    });
+
     const order = await prisma.order.create({
       data: {
-        userId,
+        netId,
         totalPrice,
         buttery: buttery || null,
         status: "pending",
@@ -210,20 +217,38 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       },
     });
     res.status(201).json(order);
-  } catch {
+  } catch (error) {
+    console.error("Order creation error:", error);
     res.status(500).json({ error: "Failed to create order" });
   }
 });
 
-// Get user's orders (with optional buttery filter)
-app.get("/api/users/:userId/orders", async (req: Request, res: Response) => {
+// Get all orders (with optional buttery filter)
+app.get("/api/orders", async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const { buttery } = req.query;
+
+    const orders = await prisma.order.findMany({
+      where: buttery ? { buttery: buttery as string } : undefined,
+      include: { orderItems: { include: { modifiers: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(orders);
+  } catch (error) {
+    console.error("All orders fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+// Get user's orders (with optional buttery filter)
+app.get("/api/users/:netId/orders", async (req: Request, res: Response) => {
+  try {
+    const { netId } = req.params;
     const { buttery } = req.query;
 
     const orders = await prisma.order.findMany({
       where: {
-        userId,
+        netId,
         ...(buttery && { buttery: buttery as string }),
       },
       include: { orderItems: { include: { modifiers: true } } },
