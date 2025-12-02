@@ -12,9 +12,21 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  const sortedOrders = [...orders]
-    .filter(o => !hideCompleted || o.status !== 'completed')
-    .sort((a, b) => b.placedAt - a.placedAt);
+  // Filter to past 12 hours and sort oldest to newest
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  const ordersWithinPast12h = [...orders]
+    .filter(o => (now - o.placedAt) <= TWELVE_HOURS_MS)
+    .sort((a, b) => a.placedAt - b.placedAt); // oldest first
+
+  // Create map of order ID to sequential number (for labeling)
+  const orderNumberMap = new Map(
+    ordersWithinPast12h.map((order, index) => [order.id, index + 1])
+  );
+
+  // Apply hideCompleted filter for display
+  const sortedOrders = ordersWithinPast12h.filter(o => !hideCompleted || o.status !== 'completed');
 
   const statusColors: Record<Order['status'], string> = {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -53,7 +65,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
       {/* Header */}
       <div className="bg-gray-50 border-b p-4 flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">
-          Orders ({sortedOrders.length})
+          Orders ({sortedOrders.length}/{ordersWithinPast12h.length})
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -95,7 +107,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-gray-900 text-sm">{order.id}</p>
+                      <p className="font-bold text-gray-900 text-sm">Order #{orderNumberMap.get(order.id)}</p>
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColors[order.status]}`}>
                         {order.status}
                       </span>
