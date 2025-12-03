@@ -138,12 +138,26 @@ export const api = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      interface BackendCreatedOrderItem {
+        id: string;
+        menuItemId: string;
+        quantity: number;
+        price: number;
+      }
+
       const order = await response.json();
       return {
         id: order.id,
         netId: order.netId,
         buttery: order.buttery,
-        items: order.orderItems || [],
+        // Transform backend items to frontend OrderItem format
+        items: (order.orderItems || []).map((backendItem: BackendCreatedOrderItem) => ({
+          menuItemId: backendItem.menuItemId,
+          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          quantity: backendItem.quantity,
+          price: backendItem.price,
+          modifiers: [],
+        })),
         totalPrice: order.totalPrice,
         status: order.status as Order['status'],
         placedAt: new Date(order.createdAt).getTime(),
@@ -202,7 +216,16 @@ export const api = {
         id: o.id,
         netId: o.netId,
         buttery: o.buttery,
-        items: (o.orderItems || []) as unknown as OrderItem[],
+        // Transform backend items to frontend OrderItem format
+        // CRITICAL: Backend items only have menuItemId, NOT name
+        // Name will be populated by enrichOrdersWithMenuNames() function
+        items: (o.orderItems || []).map(backendItem => ({
+          menuItemId: backendItem.menuItemId,
+          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          quantity: backendItem.quantity,
+          price: backendItem.price,
+          modifiers: [], // TODO: Transform modifiers when backend implements them
+        })),
         totalPrice: o.totalPrice,
         status: o.status as Order['status'],
         placedAt: new Date(o.createdAt).getTime(),
@@ -261,7 +284,16 @@ export const api = {
         id: o.id,
         netId: o.netId,
         buttery: o.buttery,
-        items: (o.orderItems || []) as unknown as OrderItem[],
+        // Transform backend items to frontend OrderItem format
+        // CRITICAL: Backend items only have menuItemId, NOT name
+        // Name will be populated by enrichOrdersWithMenuNames() function
+        items: (o.orderItems || []).map(backendItem => ({
+          menuItemId: backendItem.menuItemId,
+          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          quantity: backendItem.quantity,
+          price: backendItem.price,
+          modifiers: [], // TODO: Transform modifiers when backend implements them
+        })),
         totalPrice: o.totalPrice,
         status: o.status as Order['status'],
         placedAt: new Date(o.createdAt).getTime(),
@@ -315,12 +347,26 @@ export const api = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      interface BackendUpdatedOrderItem {
+        id: string;
+        menuItemId: string;
+        quantity: number;
+        price: number;
+      }
+
       const order = await response.json();
       return {
         id: order.id,
         netId: order.netId,
         buttery: order.buttery,
-        items: order.orderItems || [],
+        // Transform backend items to frontend OrderItem format
+        items: (order.orderItems || []).map((backendItem: BackendUpdatedOrderItem) => ({
+          menuItemId: backendItem.menuItemId,
+          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          quantity: backendItem.quantity,
+          price: backendItem.price,
+          modifiers: [],
+        })),
         totalPrice: order.totalPrice,
         status: order.status as Order['status'],
         placedAt: new Date(order.createdAt).getTime(),

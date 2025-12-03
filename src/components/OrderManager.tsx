@@ -200,19 +200,34 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                     <div>
                       <h4 className="text-xs font-bold text-gray-900 mb-2 uppercase">Items</h4>
                       <div className="space-y-1">
-                        {order.items.map((item, idx) => (
-                          <div key={idx} className="text-xs text-gray-700">
-                            <div className="flex justify-between">
-                              <span>{item.name} x{item.quantity}</span>
-                              <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
-                            </div>
-                            {item.modifiers && item.modifiers.length > 0 && (
-                              <div className="text-gray-600 ml-2 text-xs">
-                                {item.modifiers.join(', ')}
+                        {order.items.map((item, idx) => {
+                          // Defensive check: ensure item name exists, provide fallback
+                          const itemName = item.name || `Item ${item.menuItemId?.substring(0, 8) || 'Unknown'}`;
+
+                          // Log warning if name is missing (indicates enrichment failure)
+                          if (!item.name) {
+                            console.warn('[OrderManager] Order item missing name:', {
+                              orderId: order.id,
+                              itemIndex: idx,
+                              menuItemId: item.menuItemId,
+                              item
+                            });
+                          }
+
+                          return (
+                            <div key={idx} className="text-xs text-gray-700">
+                              <div className="flex justify-between">
+                                <span>{itemName} x{item.quantity}</span>
+                                <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              {item.modifiers && item.modifiers.length > 0 && (
+                                <div className="text-gray-600 ml-2 text-xs">
+                                  {item.modifiers.join(', ')}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 

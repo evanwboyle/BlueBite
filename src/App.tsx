@@ -99,37 +99,44 @@ function App() {
   useEffect(() => {
     const loadOrders = async () => {
       // Skip if menu items haven't loaded yet (need them for enrichment)
+      // This prevents race condition where orders load before menu
       if (menuItems.length === 0) {
+        console.log('[App.loadOrders] Waiting for menu items to load before fetching orders...');
         return;
       }
+
+      console.log('[App.loadOrders] Menu loaded, fetching orders...');
 
       // 1. Load cached orders immediately (if available)
       const cachedOrders = storage.getCachedOrders(selectedButtery);
       if (cachedOrders && cachedOrders.length > 0) {
-        console.log(`Loaded ${cachedOrders.length} orders from cache`);
+        console.log(`[App.loadOrders] Loaded ${cachedOrders.length} orders from cache`);
+        // CRITICAL: Use current menuItems state for enrichment, not stale data
         const enrichedCachedOrders = enrichOrdersWithMenuNames(cachedOrders, menuItems);
         setOrders(enrichedCachedOrders);
       }
 
       // 2. Fetch fresh orders from API in background
       try {
-        console.log('Fetching all orders for buttery:', selectedButtery);
+        console.log('[App.loadOrders] Fetching all orders for buttery:', selectedButtery);
         const allOrders = await api.fetchAllOrders(selectedButtery || undefined);
-        console.log(`Fetched ${allOrders.length} fresh orders from API`);
+        console.log(`[App.loadOrders] Fetched ${allOrders.length} fresh orders from API`);
 
+        // CRITICAL: Enrich with current menu items (may have updated since cached orders)
         const enrichedOrders = enrichOrdersWithMenuNames(allOrders, menuItems);
         setOrders(enrichedOrders);
 
         // Update cache for next time
         storage.setCachedOrders(allOrders, selectedButtery);
       } catch (err) {
-        console.error('Failed to fetch orders:', err);
+        console.error('[App.loadOrders] Failed to fetch orders:', err);
 
         // If we have cached data, keep using it silently
         if (cachedOrders && cachedOrders.length > 0) {
-          console.warn('Using cached orders due to API failure');
+          console.warn('[App.loadOrders] Using cached orders due to API failure');
         } else {
           // Only clear orders if no cached data available
+          console.warn('[App.loadOrders] No orders available (API failed, no cache)');
           setOrders([]);
         }
       }
@@ -218,9 +225,13 @@ function App() {
 
       // 3. On success - silent (no additional action needed, optimistic update already applied)
       onSuccess: (updatedOrder) => {
-        // Optional: verify server state matches optimistic state
+        // CRITICAL: Re-enrich the server response with menu names
+        // Server returns only item IDs, so we must look up names from current menu state
+        const enrichedOrder = enrichOrdersWithMenuNames([updatedOrder], menuItems)[0];
+
+        // Verify server state matches optimistic state
         const newOrders = orders.map(o =>
-          o.id === id ? updatedOrder : o
+          o.id === id ? enrichedOrder : o
         );
         setOrders(newOrders);
         storage.setCachedOrders(newOrders, selectedButtery);
