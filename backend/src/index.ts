@@ -1,7 +1,9 @@
 import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import session from "express-session";
 import { PrismaClient } from "@prisma/client";
+import passport from "./auth/cas";
 
 dotenv.config();
 
@@ -18,6 +20,24 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Session middleware
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "bluebite-dev-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24, // 24 hours
+    },
+  })
+);
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Initialize Prisma Client
 const prisma = new PrismaClient();
 
@@ -33,6 +53,66 @@ app.get("/api/health", async (req: Request, res: Response) => {
     res.json({ status: "Database connected", ping: result });
   } catch {
     res.status(500).json({ error: "Database connection failed" });
+  }
+});
+
+// CAS Login route - both initiates and handles CAS authentication
+app.get(
+  "/api/auth/login",
+  (req: Request, res: Response, next) => {
+    // Log incoming request details for debugging
+    const ticket = req.query.ticket;
+    const service = req.query.service;
+
+    if (ticket) {
+      console.log("CAS callback with ticket:", {
+        ticket,
+        service,
+        originalUrl: req.originalUrl,
+        queryParams: req.query
+      });
+    }
+
+    // Add custom error handling for CAS authentication
+    passport.authenticate("cas", { failureRedirect: "/" })(req, res, (err: any) => {
+      if (err) {
+        console.error("CAS authentication error:", {
+          message: err.message,
+          cause: err.cause?.message,
+          stack: err.stack
+        });
+        return res.status(500).json({
+          error: "Authentication failed",
+          message: err.message || err,
+          details: err.cause?.message || null
+        });
+      }
+      next();
+    });
+  },
+  (req: Request, res: Response) => {
+    // Authentication successful, redirect back to frontend without parameters
+    const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
+    res.redirect(frontendUrl);
+  }
+);
+
+// Logout route
+app.post("/api/auth/logout", (req: Request, res: Response) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: "Logout failed" });
+    }
+    res.json({ message: "Logged out successfully" });
+  });
+});
+
+// Get current authenticated user
+app.get("/api/auth/user", (req: Request, res: Response) => {
+  if (req.isAuthenticated()) {
+    res.json(req.user);
+  } else {
+    res.status(401).json({ error: "Not authenticated" });
   }
 });
 

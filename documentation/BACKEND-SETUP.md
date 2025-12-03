@@ -614,6 +614,17 @@ curl http://localhost:3000/api/health
 
 ## Related Documentation
 
+### CAS Authentication
+For Yale CAS login implementation, see: [CAS-AUTHENTICATION.md](./CAS-AUTHENTICATION.md)
+
+This document covers:
+- Yale CAS authentication flow and setup
+- Session-based authentication with Passport.js
+- Frontend integration for user login
+- Testing CAS login in development
+- Production deployment and security considerations
+
+### Yalies API Integration
 For Yalies API integration details, see: [YALIES-INTEGRATION.md](./YALIES-INTEGRATION.md)
 
 This document covers:

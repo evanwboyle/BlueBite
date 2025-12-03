@@ -15,11 +15,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@coursetable/passport-cas": "^0.1.4",
     "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.86.0",
+    "@types/express-session": "^1.18.2",
+    "@types/passport": "^1.0.17",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "passport": "^0.7.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {

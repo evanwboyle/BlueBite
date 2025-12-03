@@ -3,10 +3,17 @@ import type { Order, OrderItem, MenuItem } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
+import { SettingsModal } from './components/SettingsModal';
 import { OrderManager } from './components/OrderManager';
 import { storage } from './utils/storage';
 import { api } from './utils/api';
 import { Bell } from 'lucide-react';
+
+interface User {
+  netId: string;
+  name?: string;
+  role: string;
+}
 
 function App() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -18,9 +25,11 @@ function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [passToCustomerMode, setPassToCustomerMode] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
   const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
   const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>([ ]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // Initialize on mount
   useEffect(() => {
@@ -31,6 +40,20 @@ function App() {
         setButteryOptions(butteries);
       } catch (err) {
         console.error('Failed to fetch butteries:', err);
+      }
+
+      // Fetch current user login status
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+        const response = await fetch(`${apiUrl}/auth/user`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const user = await response.json();
+          setCurrentUser(user);
+        }
+      } catch (err) {
+        console.error('Failed to fetch user:', err);
       }
     };
 
@@ -186,7 +209,7 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
-      <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
+      <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
 
       {/* Notification Overlay */}
       {notification && (
@@ -255,6 +278,16 @@ function App() {
           onRemoveItem={handleRemoveFromCart}
           onCheckout={handleCheckout}
           onPassToCustomer={handlePassToCustomer}
+        />
+      )}
+
+      {isSettingsOpen && (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          currentUser={currentUser}
+          onUserLogin={(user) => setCurrentUser(user)}
+          onUserLogout={() => setCurrentUser(null)}
         />
       )}
     </div>
