@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import type { OrderItem } from '../types';
 import { X, Trash2, ShoppingCart } from 'lucide-react';
+import { calculateCartTotal } from '../utils/cart';
 
 interface CartModalProps {
   items: OrderItem[];
   onClose: () => void;
   onRemoveItem: (index: number) => void;
   onCheckout: (netId: string) => void;
-  onPassToCustomer?: () => void;
 }
 
 export function CartModal({
@@ -17,7 +17,7 @@ export function CartModal({
   onCheckout,
 }: CartModalProps) {
   const [netId, setNetId] = useState('');
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const total = calculateCartTotal(items);
 
   const handlePlaceOrder = () => {
     if (!netId.trim()) {

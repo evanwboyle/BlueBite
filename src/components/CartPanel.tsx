@@ -1,15 +1,15 @@
 import type { OrderItem } from '../types';
 import { Trash2, ShoppingCart } from 'lucide-react';
+import { calculateCartTotal } from '../utils/cart';
 
 interface CartPanelProps {
   items: OrderItem[];
   onRemoveItem: (index: number) => void;
   onCheckout: () => void;
-  onPassToCustomer: () => void;
 }
 
-export function CartPanel({ items, onRemoveItem, onCheckout, onPassToCustomer }: CartPanelProps) {
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+export function CartPanel({ items, onRemoveItem, onCheckout }: CartPanelProps) {
+  const total = calculateCartTotal(items);
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 h-full flex flex-col">
@@ -63,20 +63,12 @@ export function CartPanel({ items, onRemoveItem, onCheckout, onPassToCustomer }:
             <span className="text-blue-600">${total.toFixed(2)}</span>
           </div>
 
-          <div className="space-y-2">
-            <button
-              onClick={onCheckout}
-              className="btn-primary w-full"
-            >
-              Confirm Order
-            </button>
-            <button
-              onClick={onPassToCustomer}
-              className="btn-secondary w-full"
-            >
-              Pass to Customer
-            </button>
-          </div>
+          <button
+            onClick={onCheckout}
+            className="btn-primary w-full"
+          >
+            Confirm Order
+          </button>
         </div>
       )}
     </div>

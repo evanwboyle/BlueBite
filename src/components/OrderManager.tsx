@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Order } from '../types';
 import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
+import { yaliesCache } from '../utils/yaliesCache';
 
 interface OrderManagerProps {
   orders: Order[];
@@ -12,7 +13,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
-  const [yaliesCache, setYaliesCache] = useState<Map<string, YaliesUser | null>>(new Map());
+  const [userCache, setUserCache] = useState<Map<string, YaliesUser | null>>(new Map());
 
   // Filter to past 12 hours and sort oldest to newest
   const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -30,32 +31,52 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   // Apply hideCompleted filter for display
   const sortedOrders = ordersWithinPast12h.filter(o => !hideCompleted || o.status !== 'completed');
 
+  // Memoize netIds to avoid unnecessary effect reruns
+  const netIds = useMemo(
+    () => ordersWithinPast12h.map(o => o.netId),
+    [ordersWithinPast12h]
+  );
+
   // Fetch Yalies user data for orders
   useEffect(() => {
     const fetchYaliesData = async () => {
-      const newCache = new Map(yaliesCache);
+      const newCache = new Map(userCache);
       let cacheUpdated = false;
 
       for (const order of ordersWithinPast12h) {
-        if (!newCache.has(order.netId)) {
-          const user = await yalies.fetchUserByNetId(order.netId);
-          newCache.set(order.netId, user);
-          cacheUpdated = true;
+        // Check persistent cache first
+        const cachedUser = yaliesCache.get(order.netId);
+
+        if (cachedUser !== undefined) {
+          // Cache hit - use cached data
+          if (!newCache.has(order.netId)) {
+            newCache.set(order.netId, cachedUser);
+            cacheUpdated = true;
+          }
+        } else {
+          // Cache miss - fetch from API
+          if (!newCache.has(order.netId)) {
+            const user = await yalies.fetchUserByNetId(order.netId);
+            newCache.set(order.netId, user);
+            yaliesCache.set(order.netId, user); // Store in persistent cache
+            cacheUpdated = true;
+          }
         }
       }
 
       if (cacheUpdated) {
-        setYaliesCache(newCache);
+        setUserCache(newCache);
       }
     };
 
     if (ordersWithinPast12h.length > 0) {
       fetchYaliesData();
     }
-  }, [ordersWithinPast12h.map(o => o.netId).join(',')]); // Dependency on unique netIds
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [netIds]);
 
   const getCustomerDisplayName = (netId: string): string => {
-    const user = yaliesCache.get(netId);
+    const user = userCache.get(netId);
     if (user) {
       const lastInitial = user.last_name.charAt(0).toUpperCase();
       return `${user.first_name} ${lastInitial}`;
@@ -165,7 +186,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                     {/* Customer Profile Image */}
                     <div className="flex items-center gap-3">
                       <img
-                        src={yaliesCache.get(order.netId)?.image || '/src/assets/no_image.png'}
+                        src={userCache.get(order.netId)?.image || '/src/assets/no_image.png'}
                         alt={getCustomerDisplayName(order.netId)}
                         className="w-16 h-16 rounded-full object-cover bg-gray-200"
                       />

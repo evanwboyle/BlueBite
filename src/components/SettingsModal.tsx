@@ -1,32 +1,25 @@
 import { X, Settings, LogOut } from 'lucide-react';
-
-interface User {
-  netId: string;
-  name?: string;
-  role: string;
-}
+import { API_BASE_URL } from '../utils/config';
+import type { User } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
-  onUserLogin: (user: User) => void;
   onUserLogout: () => void;
 }
 
-export function SettingsModal({ isOpen, onClose, currentUser, onUserLogin, onUserLogout }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, currentUser, onUserLogout }: SettingsModalProps) {
   if (!isOpen) return null;
 
   const handleCASLogin = () => {
     // Redirect to backend CAS login endpoint
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-    window.location.href = `${apiUrl}/auth/login`;
+    window.location.href = `${API_BASE_URL}/auth/login`;
   };
 
   const handleLogout = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-      await fetch(`${apiUrl}/auth/logout`, {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -58,59 +51,12 @@ export function SettingsModal({ isOpen, onClose, currentUser, onUserLogin, onUse
         <div className="p-6 space-y-4">
           {currentUser ? (
             <div className="space-y-3">
-              <div
-                style={{
-                  WebkitTextSizeAdjust: '100%',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
-                  boxSizing: 'border-box',
-                  display: 'block',
-                  marginBottom: '0',
-                  fontSize: '14px',
-                  fontWeight: 400,
-                  lineHeight: '1.42857143',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  verticalAlign: 'middle',
-                  userSelect: 'none',
-                  border: '1px solid transparent',
-                  borderRadius: '4px',
-                  width: '100%',
-                  backgroundColor: '#00356b',
-                  color: '#fff',
-                  padding: '8px',
-                }}
-              >
+              <div className="w-full bg-blue-900 text-white px-2 py-2 rounded text-center text-sm">
                 Logged in as {currentUser.netId}
               </div>
               <button
                 onClick={handleLogout}
-                style={{
-                  WebkitTextSizeAdjust: '100%',
-                  WebkitTapHighlightColor: 'rgba(0,0,0,0)',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
-                  boxSizing: 'border-box',
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  marginBottom: '0',
-                  fontSize: '14px',
-                  fontWeight: 400,
-                  lineHeight: '1.42857143',
-                  textAlign: 'center',
-                  verticalAlign: 'middle',
-                  touchAction: 'manipulation',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  backgroundImage: 'none',
-                  border: '1px solid transparent',
-                  borderRadius: '4px',
-                  width: '100%',
-                  backgroundColor: '#c53030',
-                  color: '#fff',
-                  padding: '8px',
-                }}
+                className="w-full bg-red-600 text-white px-2 py-2 rounded text-center text-sm font-medium hover:bg-red-700 transition flex items-center justify-center gap-2"
               >
                 <LogOut size={14} />
                 Logout
@@ -119,31 +65,7 @@ export function SettingsModal({ isOpen, onClose, currentUser, onUserLogin, onUse
           ) : (
             <button
               onClick={handleCASLogin}
-              style={{
-                WebkitTextSizeAdjust: '100%',
-                WebkitTapHighlightColor: 'rgba(0,0,0,0)',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
-                boxSizing: 'border-box',
-                textDecoration: 'none',
-                display: 'inline-block',
-                marginBottom: '0',
-                fontSize: '14px',
-                fontWeight: 400,
-                lineHeight: '1.42857143',
-                textAlign: 'center',
-                whiteSpace: 'nowrap',
-                verticalAlign: 'middle',
-                touchAction: 'manipulation',
-                cursor: 'pointer',
-                userSelect: 'none',
-                backgroundImage: 'none',
-                border: '1px solid transparent',
-                borderRadius: '4px',
-                width: '100%',
-                backgroundColor: '#00356b',
-                color: '#fff',
-                padding: '8px',
-              }}
+              className="w-full bg-blue-900 text-white px-2 py-2 rounded text-center text-sm font-medium hover:bg-blue-950 transition"
             >
               Login with Yale CAS
             </button>

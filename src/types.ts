@@ -47,8 +47,9 @@ export interface Resco {
 
 export interface User {
   netId: string;
-  name: string;
+  name?: string;
   picture?: string;
   phone?: string;
-  currentResco: string;
+  currentResco?: string;
+  role?: string;
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Order, OrderItem, MenuItem } from './types';
+import type { Order, OrderItem, MenuItem, User } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
@@ -7,13 +7,11 @@ import { SettingsModal } from './components/SettingsModal';
 import { OrderManager } from './components/OrderManager';
 import { storage } from './utils/storage';
 import { api } from './utils/api';
+import { API_BASE_URL } from './utils/config';
+import { calculateCartTotal } from './utils/cart';
+import { enrichOrdersWithMenuNames } from './utils/order';
+import { optimisticUpdate } from './utils/optimistic';
 import { Bell } from 'lucide-react';
-
-interface User {
-  netId: string;
-  name?: string;
-  role: string;
-}
 
 function App() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -23,7 +21,6 @@ function App() {
     return storedCart.items || [];
   });
   const [notification, setNotification] = useState<string | null>(null);
-  const [passToCustomerMode, setPassToCustomerMode] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
@@ -44,8 +41,7 @@ function App() {
 
       // Fetch current user login status
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-        const response = await fetch(`${apiUrl}/auth/user`, {
+        const response = await fetch(`${API_BASE_URL}/auth/user`, {
           credentials: 'include',
         });
         if (response.ok) {
@@ -53,54 +49,89 @@ function App() {
           setCurrentUser(user);
         }
       } catch (err) {
-        console.error('Failed to fetch user:', err);
+        console.error('Failed to check authentication status:', err);
+        setNotification('Unable to check authentication status');
+        setTimeout(() => setNotification(null), 3000);
       }
     };
 
     init();
   }, []);
 
-  // Load menu items when buttery changes
+  // Load menu items when buttery changes - with progressive caching
   useEffect(() => {
     const loadMenuItems = async () => {
+      // 1. Load cached menu immediately (if available)
+      const cachedMenu = storage.getCachedMenu(selectedButtery);
+      if (cachedMenu && cachedMenu.length > 0) {
+        console.log(`Loaded ${cachedMenu.length} menu items from cache`);
+        setMenuItems(cachedMenu);
+      }
+
+      // 2. Fetch fresh menu from API in background
       try {
         const freshMenu = await api.fetchMenuItems(selectedButtery || undefined);
+        console.log(`Fetched ${freshMenu.length} fresh menu items from API`);
+
+        // Update state with fresh data
         setMenuItems(freshMenu);
+
+        // Update cache for next time
+        storage.setCachedMenu(freshMenu, selectedButtery);
       } catch (error) {
         console.error('Failed to fetch menu from API:', error);
-        setNotification(`Error loading menu: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        setMenuItems([]);
+
+        // If we have cached data, keep using it silently
+        if (cachedMenu && cachedMenu.length > 0) {
+          console.warn('Using cached menu due to API failure');
+        } else {
+          // Only show error if no cached data available
+          setNotification(`Error loading menu: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          setMenuItems([]);
+        }
       }
     };
 
     loadMenuItems();
   }, [selectedButtery]);
 
-  // Fetch all orders (staff/admin view) after menu items are loaded
+  // Fetch all orders (staff/admin view) after menu items are loaded - with progressive caching
   useEffect(() => {
     const loadOrders = async () => {
+      // Skip if menu items haven't loaded yet (need them for enrichment)
+      if (menuItems.length === 0) {
+        return;
+      }
+
+      // 1. Load cached orders immediately (if available)
+      const cachedOrders = storage.getCachedOrders(selectedButtery);
+      if (cachedOrders && cachedOrders.length > 0) {
+        console.log(`Loaded ${cachedOrders.length} orders from cache`);
+        const enrichedCachedOrders = enrichOrdersWithMenuNames(cachedOrders, menuItems);
+        setOrders(enrichedCachedOrders);
+      }
+
+      // 2. Fetch fresh orders from API in background
       try {
         console.log('Fetching all orders for buttery:', selectedButtery);
         const allOrders = await api.fetchAllOrders(selectedButtery || undefined);
-        console.log('Orders fetched:', allOrders);
+        console.log(`Fetched ${allOrders.length} fresh orders from API`);
 
-        // Enrich orders with menu item names
-        const menuItemMap = new Map(menuItems.map(item => [item.id, item]));
-        const enrichedOrders = allOrders.map((o) => ({
-          ...o,
-          items: (o.items || []).map(item => {
-            const menuItem = menuItemMap.get(item.menuItemId);
-            return {
-              ...item,
-              name: menuItem?.name || item.name || 'Unknown Item',
-            };
-          }),
-        }));
-
+        const enrichedOrders = enrichOrdersWithMenuNames(allOrders, menuItems);
         setOrders(enrichedOrders);
+
+        // Update cache for next time
+        storage.setCachedOrders(allOrders, selectedButtery);
       } catch (err) {
         console.error('Failed to fetch orders:', err);
-        setOrders([]);
+
+        // If we have cached data, keep using it silently
+        if (cachedOrders && cachedOrders.length > 0) {
+          console.warn('Using cached orders due to API failure');
+        } else {
+          // Only clear orders if no cached data available
+          setOrders([]);
+        }
       }
     };
 
@@ -110,7 +141,7 @@ function App() {
   const handleAddToCart = (item: OrderItem) => {
     const newCart = [...cartItems, item];
     setCartItems(newCart);
-    storage.setCart({ items: newCart, total: calculateTotal(newCart) });
+    storage.setCart({ items: newCart, total: calculateCartTotal(newCart) });
     setNotification(`Added ${item.name} to cart`);
     setTimeout(() => setNotification(null), 2000);
   };
@@ -118,11 +149,8 @@ function App() {
   const handleRemoveFromCart = (index: number) => {
     const newCart = cartItems.filter((_, i) => i !== index);
     setCartItems(newCart);
-    storage.setCart({ items: newCart, total: calculateTotal(newCart) });
+    storage.setCart({ items: newCart, total: calculateCartTotal(newCart) });
   };
-
-  const calculateTotal = (items: OrderItem[]) =>
-    items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckout = async (netId: string) => {
     if (cartItems.length === 0) {
@@ -131,7 +159,7 @@ function App() {
     }
 
     try {
-      const totalPrice = calculateTotal(cartItems);
+      const totalPrice = calculateCartTotal(cartItems);
       const newOrder = await api.createOrder(
         netId,
         cartItems,
@@ -139,21 +167,13 @@ function App() {
         selectedButtery || undefined
       );
 
-      // Enrich new order with menu item names
-      const menuItemMap = new Map(menuItems.map(item => [item.id, item]));
-      const enrichedOrder = {
-        ...newOrder,
-        items: (newOrder.items || []).map(item => {
-          const menuItem = menuItemMap.get(item.menuItemId);
-          return {
-            ...item,
-            name: menuItem?.name || item.name || 'Unknown Item',
-          };
-        }),
-      };
-
-      const newOrders = [...orders, enrichedOrder];
+      const enrichedOrders = enrichOrdersWithMenuNames([newOrder], menuItems);
+      const newOrders = [...orders, enrichedOrders[0]];
       setOrders(newOrders);
+
+      // Update cache with new order
+      storage.setCachedOrders(newOrders, selectedButtery);
+
       setCartItems([]);
       storage.setCart({ items: [], total: 0 });
       setIsCartOpen(false);
@@ -166,33 +186,60 @@ function App() {
     }
   };
 
-  const handlePassToCustomer = () => {
-    setPassToCustomerMode(true);
-    const timer = setTimeout(() => {
-      setPassToCustomerMode(false);
-      handleCheckout();
-    }, 3000);
+  const handleUpdateOrder = (id: string, status: Order['status']) => {
+    // Find the order to get its current status for logging
+    const order = orders.find(o => o.id === id);
+    const previousStatus = order?.status;
 
-    return () => clearTimeout(timer);
-  };
+    // Use optimistic update pattern with retry logic
+    optimisticUpdate.execute({
+      // 1. Apply optimistic update immediately - UI updates instantly
+      optimisticUpdate: () => {
+        const newOrders = orders.map(o =>
+          o.id === id ? { ...o, status } : o
+        );
+        setOrders(newOrders);
 
-  const handleUpdateOrder = async (id: string, status: Order['status']) => {
-    try {
-      const updatedOrder = await api.updateOrderStatus(id, status);
-      const newOrders = orders.map(o => o.id === id ? updatedOrder : o);
-      setOrders(newOrders);
+        // Update cache with optimistic state
+        storage.setCachedOrders(newOrders, selectedButtery);
 
-      if (status === 'ready') {
-        setNotification('Order ready for pickup!');
-      } else if (status === 'completed') {
-        setNotification('Order completed!');
-      }
-      setTimeout(() => setNotification(null), 2000);
-    } catch (error) {
-      console.error('Failed to update order:', error);
-      setNotification('Failed to update order');
-      setTimeout(() => setNotification(null), 2000);
-    }
+        // Show success notification for certain status changes
+        if (status === 'ready') {
+          setNotification('Order ready for pickup!');
+          setTimeout(() => setNotification(null), 2000);
+        } else if (status === 'completed') {
+          setNotification('Order completed!');
+          setTimeout(() => setNotification(null), 2000);
+        }
+      },
+
+      // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)
+      syncFn: () => api.updateOrderStatus(id, status),
+
+      // 3. On success - silent (no additional action needed, optimistic update already applied)
+      onSuccess: (updatedOrder) => {
+        // Optional: verify server state matches optimistic state
+        const newOrders = orders.map(o =>
+          o.id === id ? updatedOrder : o
+        );
+        setOrders(newOrders);
+        storage.setCachedOrders(newOrders, selectedButtery);
+      },
+
+      // 4. On error (after all 3 retries exhausted) - show warning but keep optimistic state
+      onError: (error, attemptCount) => {
+        console.error(`Failed to sync order update after ${attemptCount} attempts:`, error);
+        setNotification(`Warning: Order status change may not be saved (${error.message})`);
+        setTimeout(() => setNotification(null), 5000);
+
+        // Note: We intentionally DO NOT revert the optimistic update
+        // The UI keeps the new status even if sync fails
+        // This prevents confusing UX where the status flips back and forth
+      },
+
+      // 5. Unique ID for this update (allows cancellation if needed)
+      id: `order-${id}-${previousStatus}-to-${status}`,
+    });
   };
 
   const handleButteryChange = (buttery: string | null) => {
@@ -218,13 +265,6 @@ function App() {
             <Bell size={18} />
             {notification}
           </div>
-        </div>
-      )}
-
-      {/* Pass to Customer Mode */}
-      {passToCustomerMode && (
-        <div className="bg-yellow-400 text-yellow-900 px-4 py-3 text-center font-bold shadow">
-          Pass device to customer - Order will be placed in 3 seconds...
         </div>
       )}
 
@@ -277,7 +317,6 @@ function App() {
           onClose={() => setIsCartOpen(false)}
           onRemoveItem={handleRemoveFromCart}
           onCheckout={handleCheckout}
-          onPassToCustomer={handlePassToCustomer}
         />
       )}
 
@@ -286,7 +325,6 @@ function App() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           currentUser={currentUser}
-          onUserLogin={(user) => setCurrentUser(user)}
           onUserLogout={() => setCurrentUser(null)}
         />
       )}
