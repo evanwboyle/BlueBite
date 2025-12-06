@@ -57,9 +57,9 @@ export function MenuGrid({
   return (
     <div className="h-full flex flex-col">
       {/* Menu Header with Cart Button / Add Item Button */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 flex items-center justify-between rounded-t-none">
+      <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-8 flex items-center justify-between rounded-t-none h-[40px]">
         <h2 className="text-lg font-bold">Menu</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 pr-6">
           {showEditControls && onCreateMenuItem && (
             <button
               onClick={handleCreateClick}
@@ -73,7 +73,7 @@ export function MenuGrid({
           {onCartClick && !showEditControls && (
             <button
               onClick={onCartClick}
-              className="relative hover:bg-blue-700 px-3 py-2 rounded transition flex items-center gap-2"
+              className="relative hover:bg-blue-700 px-16 py-2 rounded transition inline-block"
               aria-label="Shopping cart"
             >
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

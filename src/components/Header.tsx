@@ -7,8 +7,8 @@ interface HeaderProps {
 
 export function Header({ onSettingsClick }: HeaderProps) {
   return (
-    <header className="bg-gradient-to-r from-bluebite-primary to-bluebite-dark text-white shadow-lg">
-      <div className="flex items-center justify-between px-6 py-4">
+    <header className="bg-blue-900 text-white shadow-lg">
+      <div className="flex items-center justify-between px-6 py-6">
         <div className="flex items-center gap-3">
           <img src={bluebiteLogo} alt="BlueBite logo" className="w-10 h-10 rounded-full" />
           <h1 className="text-2xl font-bold">BlueBite</h1>

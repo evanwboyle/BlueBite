@@ -448,7 +448,7 @@ function App() {
       <div className="flex-1 flex overflow-hidden gap-4 p-4">
         {/* Left Panel - Ordering */}
         <div style={{ flex: `0 0 ${leftPanelWidth}%` }} className="flex flex-col min-w-0">
-          <div className="bg-white shadow border border-gray-200 flex-1 flex flex-col overflow-hidden">
+          <div className="bg-white shadow flex-1 flex flex-col overflow-hidden">
             <MenuGrid
               items={menuItems}
               onAddToCart={handleAddToCart}
