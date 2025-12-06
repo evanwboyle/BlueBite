@@ -1,328 +1,92 @@
-# Menu Editing Feature - Simple Implementation Plan
+# Menu Editing Feature - Updated Implementation Plan
 
-Just a straightforward guide to add menu editing to BlueBite. No corporate BS.
+Revised approach: Edit Mode toggle in Settings, editing happens inline in the menu with modal-based editing.
 
 ---
 
 ## What We're Building
 
-**Staff users** can toggle menu items on/off and mark them as hot/cold.
-**Admin users** can do everything - edit prices, names, add/delete items and modifiers.
+**Edit Mode** - A toggle in Settings that enables menu editing directly in the MenuGrid.
 
-**Where it lives**: Settings modal gets a new "Edit Menu" tab (only shows up for staff/admin).
+**Staff users** (when Edit Mode ON):
+- See pencil icons on menu items (instead of click-to-view)
+- Click pencil to open edit modal with: available toggle, hot toggle
+- Cannot delete items
 
-**How it works**: Click to edit, changes save immediately with that nice optimistic update pattern you already use for orders.
+**Admin users** (when Edit Mode ON):
+- See pencil icons on menu items (instead of click-to-view)
+- Click pencil to open full edit modal with: name, description, price, category, available, hot, delete button
+- "Add Item" button in MenuGrid header to create new items
+- Can delete items
 
----
+**Where it lives**:
+- Settings modal gets an "Edit Mode" toggle in the Account tab
+- When enabled, MenuGrid shows edit icons and Add Item button
+- ItemDetailModal gets enhanced to support both view and edit modes
 
-## User Answers from Questionnaire
-
-- **Access**: Two-tier (staff = toggles only, admin = everything)
-- **Location**: Settings modal with tabs
-- **Workflow**: Modal-based editing (like ItemDetailModal)
-- **Save**: Immediate sync with optimistic updates
+**How it works**:
+- Click pencil icon → Opens ItemDetailModal in edit mode
+- Changes save immediately with optimistic updates
+- Only available for staff/admin users
 
 ---
 
 ## Backend Changes
 
-### 1. Add RBAC Middleware (`backend/src/middleware/auth.ts`)
+**No new backend routes needed!** All API endpoints already exist:
+- `PATCH /api/menu/:itemId/toggle` - Staff can toggle available/hot
+- `PUT /api/menu/:itemId` - Admin can update all fields
+- `DELETE /api/menu/:itemId` - Admin can delete
+- `POST /api/menu` - Admin can create (already protected)
 
-Simple helpers to check if someone's logged in and what role they have:
-
-```typescript
-import { Request, Response, NextFunction } from 'express';
-
-export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  next();
-};
-
-export const requireStaff = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || (req.user.role !== 'staff' && req.user.role !== 'admin')) {
-    return res.status(403).json({ error: 'Staff or admin access required' });
-  }
-  next();
-};
-
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-};
-```
-
-### 2. Add New API Routes (`backend/src/index.ts`)
-
-Add these routes with the middleware:
-
-```typescript
-import { requireAuth, requireStaff, requireAdmin } from './middleware/auth';
-
-// Staff + Admin: Toggle availability or hot status
-app.patch('/api/menu/:itemId/toggle', requireAuth, requireStaff, async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    const { available, hot } = req.body;
-
-    // Only allow updating available or hot (staff limitation)
-    const updates: any = {};
-    if (typeof available === 'boolean') updates.available = available;
-    if (typeof hot === 'boolean') updates.hot = hot;
-
-    const item = await prisma.menuItem.update({
-      where: { id: itemId },
-      data: updates,
-      include: { modifiers: true },
-    });
-
-    res.json(item);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update item' });
-  }
-});
-
-// Admin only: Update entire menu item
-app.put('/api/menu/:itemId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    const { name, description, price, category, available, hot, buttery, image } = req.body;
-
-    const item = await prisma.menuItem.update({
-      where: { id: itemId },
-      data: { name, description, price, category, available, hot, buttery, image },
-      include: { modifiers: true },
-    });
-
-    res.json(item);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update item' });
-  }
-});
-
-// Admin only: Delete menu item
-app.delete('/api/menu/:itemId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    await prisma.menuItem.delete({ where: { id: itemId } });
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete item' });
-  }
-});
-
-// Admin only: Add existing POST /api/menu protection
-app.post('/api/menu', requireAuth, requireAdmin, async (req, res) => {
-  // ... existing code
-});
-
-// Admin only: Update modifier
-app.put('/api/menu/:itemId/modifiers/:modifierId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { modifierId } = req.params;
-    const { name, description, price } = req.body;
-
-    const modifier = await prisma.modifier.update({
-      where: { id: modifierId },
-      data: { name, description, price },
-    });
-
-    res.json(modifier);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update modifier' });
-  }
-});
-
-// Admin only: Delete modifier
-app.delete('/api/menu/:itemId/modifiers/:modifierId', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { modifierId } = req.params;
-    await prisma.modifier.delete({ where: { id: modifierId } });
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete modifier' });
-  }
-});
-```
-
-That's it for backend. Just add those middleware checks and routes.
+Backend is ready to go. Frontend just needs UI updates.
 
 ---
 
 ## Frontend Changes
 
-### 1. Update API Utils (`src/utils/api.ts`)
+### 1. Update App.tsx
 
-Add these methods:
-
-```typescript
-export const api = {
-  // ... existing methods
-
-  updateMenuItem: async (id: string, updates: Partial<MenuItem>): Promise<MenuItem> => {
-    const response = await fetch(`${API_BASE_URL}/menu/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) throw new Error('Failed to update item');
-    return response.json();
-  },
-
-  toggleMenuItem: async (id: string, updates: { available?: boolean; hot?: boolean }): Promise<MenuItem> => {
-    const response = await fetch(`${API_BASE_URL}/menu/${id}/toggle`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) throw new Error('Failed to toggle item');
-    return response.json();
-  },
-
-  deleteMenuItem: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/menu/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error('Failed to delete item');
-  },
-
-  createMenuItem: async (item: Omit<MenuItem, 'id'>): Promise<MenuItem> => {
-    const response = await fetch(`${API_BASE_URL}/menu`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(item),
-    });
-    if (!response.ok) throw new Error('Failed to create item');
-    return response.json();
-  },
-
-  updateModifier: async (itemId: string, modifierId: string, updates: Partial<Modifier>): Promise<Modifier> => {
-    const response = await fetch(`${API_BASE_URL}/menu/${itemId}/modifiers/${modifierId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) throw new Error('Failed to update modifier');
-    return response.json();
-  },
-
-  deleteModifier: async (itemId: string, modifierId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/menu/${itemId}/modifiers/${modifierId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error('Failed to delete modifier');
-  },
-};
-```
-
-### 2. Update App.tsx
-
-Add handlers for menu operations (similar to how you handle orders):
+Add state for edit mode and pass to MenuGrid:
 
 ```typescript
-// Add these handlers in App.tsx
-const handleUpdateMenuItem = (id: string, updates: Partial<MenuItem>) => {
-  optimisticUpdate.execute({
-    optimisticUpdate: () => {
-      const newItems = menuItems.map(item =>
-        item.id === id ? { ...item, ...updates } : item
-      );
-      setMenuItems(newItems);
-      storage.setCachedMenu(newItems, selectedButtery);
-    },
-    syncFn: () => api.updateMenuItem(id, updates),
-    onSuccess: (updatedItem) => {
-      const newItems = menuItems.map(item =>
-        item.id === id ? updatedItem : item
-      );
-      setMenuItems(newItems);
-      storage.setCachedMenu(newItems, selectedButtery);
-    },
-    onError: (error) => {
-      setNotification(`Failed to update item: ${error.message}`);
-    },
-    id: `menu-item-${id}`,
-  });
-};
+const [isEditMode, setIsEditMode] = useState(false);
 
-const handleDeleteMenuItem = (id: string) => {
-  optimisticUpdate.execute({
-    optimisticUpdate: () => {
-      const newItems = menuItems.filter(item => item.id !== id);
-      setMenuItems(newItems);
-      storage.setCachedMenu(newItems, selectedButtery);
-    },
-    syncFn: () => api.deleteMenuItem(id),
-    onSuccess: () => {
-      setNotification('Item deleted');
-      setTimeout(() => setNotification(null), 2000);
-    },
-    onError: (error) => {
-      setNotification(`Failed to delete: ${error.message}`);
-    },
-    id: `menu-delete-${id}`,
-  });
-};
-
-const handleCreateMenuItem = async (item: Omit<MenuItem, 'id'>) => {
-  try {
-    const newItem = await api.createMenuItem(item);
-    const newItems = [...menuItems, newItem];
-    setMenuItems(newItems);
-    storage.setCachedMenu(newItems, selectedButtery);
-    setNotification('Item created!');
-    setTimeout(() => setNotification(null), 2000);
-  } catch (error) {
-    setNotification(`Failed to create item: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-};
-
-// Pass these to SettingsModal
-<SettingsModal
-  isOpen={isSettingsOpen}
-  onClose={() => setIsSettingsOpen(false)}
+// Pass to MenuGrid:
+<MenuGrid
+  // ... existing props
+  isEditMode={isEditMode}
   currentUser={currentUser}
-  onUserLogout={() => setCurrentUser(null)}
-  // NEW PROPS:
-  menuItems={menuItems}
-  selectedButtery={selectedButtery}
-  butteryOptions={butteryOptions}
-  onUpdateMenuItem={handleUpdateMenuItem}
-  onDeleteMenuItem={handleDeleteMenuItem}
-  onCreateMenuItem={handleCreateMenuItem}
+  onOpenItemDetail={(item) => {
+    setSelectedItem(item);
+    setIsDetailOpen(true);
+  }}
+  onCreateMenuItem={() => {
+    setSelectedItem(null);  // null means create mode
+    setIsDetailOpen(true);
+  }}
+/>
+
+// Pass to SettingsModal:
+<SettingsModal
+  // ... existing props
+  isEditMode={isEditMode}
+  onSetEditMode={setIsEditMode}
 />
 ```
 
-### 3. Update SettingsModal (`src/components/SettingsModal.tsx`)
+### 2. Update SettingsModal.tsx
 
-Add tab navigation and pass props to new MenuEditorTab:
+Replace the tab-based approach with an Edit Mode toggle in the Account tab:
 
 ```typescript
-import { useState } from 'react';
-import { Settings, X, LogOut } from 'lucide-react';
-import { MenuEditorTab } from './MenuEditorTab';
-import type { User, MenuItem } from '../types';
-
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: User | null;
   onUserLogout: () => void;
-  menuItems: MenuItem[];
-  selectedButtery: string | null;
-  butteryOptions: Array<{name: string; itemCount: number}>;
-  onUpdateMenuItem: (id: string, updates: Partial<MenuItem>) => void;
-  onDeleteMenuItem: (id: string) => void;
-  onCreateMenuItem: (item: Omit<MenuItem, 'id'>) => void;
+  isEditMode: boolean;
+  onSetEditMode: (enabled: boolean) => void;
 }
 
 export function SettingsModal({
@@ -330,114 +94,85 @@ export function SettingsModal({
   onClose,
   currentUser,
   onUserLogout,
-  menuItems,
-  selectedButtery,
-  butteryOptions,
-  onUpdateMenuItem,
-  onDeleteMenuItem,
-  onCreateMenuItem,
+  isEditMode,
+  onSetEditMode,
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<'account' | 'editMenu'>('account');
-
   if (!isOpen) return null;
 
-  const showEditMenu = currentUser?.role === 'staff' || currentUser?.role === 'admin';
-  const isAdmin = currentUser?.role === 'admin';
+  const canEdit = currentUser?.role === 'staff' || currentUser?.role === 'admin';
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
          style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }}
          onClick={onClose}>
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl"
+      <div className="bg-white rounded-lg max-w-md w-full shadow-xl"
            onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="sticky top-0 flex items-center justify-between p-6 border-b bg-white z-10">
+        <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-2">
             <Settings size={24} className="text-gray-700" />
             <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b bg-gray-50">
-          <button
-            onClick={() => setActiveTab('account')}
-            className={`flex-1 px-6 py-3 font-semibold transition ${
-              activeTab === 'account'
-                ? 'text-bluebite-primary border-b-2 border-bluebite-primary bg-white'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            Account
-          </button>
-          {showEditMenu && (
-            <button
-              onClick={() => setActiveTab('editMenu')}
-              className={`flex-1 px-6 py-3 font-semibold transition ${
-                activeTab === 'editMenu'
-                  ? 'text-bluebite-primary border-b-2 border-bluebite-primary bg-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              Edit Menu
-            </button>
-          )}
-        </div>
+        {/* Account Info */}
+        <div className="p-6 space-y-4">
+          {currentUser ? (
+            <>
+              <div className="text-lg">
+                Logged in as <span className="font-semibold">{currentUser.netId}</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                Role: <span className="font-medium capitalize">{currentUser.role}</span>
+              </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {activeTab === 'account' ? (
-            <div className="space-y-4">
-              {currentUser ? (
-                <>
-                  <div className="text-lg">
-                    Logged in as <span className="font-semibold">{currentUser.netId}</span>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Role: <span className="font-medium capitalize">{currentUser.role}</span>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                      await fetch(`${apiUrl}/auth/logout`, {
-                        method: 'POST',
-                        credentials: 'include',
-                      });
-                      onUserLogout();
-                    }}
-                    className="btn-secondary flex items-center gap-2"
-                  >
-                    <LogOut size={18} />
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                    window.location.href = `${apiUrl}/auth/login`;
-                  }}
-                  className="btn-primary"
-                >
-                  Login with Yale CAS
-                </button>
+              {/* Edit Mode Toggle (only for staff/admin) */}
+              {canEdit && (
+                <div className="border-t pt-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isEditMode}
+                      onChange={(e) => onSetEditMode(e.target.checked)}
+                      className="w-5 h-5 accent-bluebite-primary rounded cursor-pointer"
+                    />
+                    <span className="font-medium text-gray-700">Edit Mode</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Enable to edit menu items directly from the menu view
+                  </p>
+                </div>
               )}
-            </div>
+
+              <button
+                onClick={async () => {
+                  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                  await fetch(`${apiUrl}/auth/logout`, {
+                    method: 'POST',
+                    credentials: 'include',
+                  });
+                  onUserLogout();
+                }}
+                className="btn-secondary w-full flex items-center justify-center gap-2"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </>
           ) : (
-            <MenuEditorTab
-              menuItems={menuItems}
-              currentUser={currentUser}
-              selectedButtery={selectedButtery}
-              butteryOptions={butteryOptions}
-              isAdmin={isAdmin}
-              onUpdateMenuItem={onUpdateMenuItem}
-              onDeleteMenuItem={onDeleteMenuItem}
-              onCreateMenuItem={onCreateMenuItem}
-            />
+            <button
+              onClick={() => {
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                window.location.href = `${apiUrl}/auth/login`;
+              }}
+              className="btn-primary w-full"
+            >
+              Login with Yale CAS
+            </button>
           )}
         </div>
       </div>
@@ -446,144 +181,276 @@ export function SettingsModal({
 }
 ```
 
-### 4. Create MenuEditorTab (`src/components/MenuEditorTab.tsx`)
+### 3. Update MenuGrid.tsx
 
-The main editing interface:
+Add edit mode handling and "Add Item" button:
 
 ```typescript
-import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, Trash2 } from 'lucide-react';
-import type { MenuItem, User } from '../types';
-
-interface MenuEditorTabProps {
-  menuItems: MenuItem[];
+interface MenuGridProps {
+  // ... existing props
+  isEditMode: boolean;
   currentUser: User | null;
-  selectedButtery: string | null;
-  butteryOptions: Array<{name: string; itemCount: number}>;
-  isAdmin: boolean;
-  onUpdateMenuItem: (id: string, updates: Partial<MenuItem>) => void;
-  onDeleteMenuItem: (id: string) => void;
-  onCreateMenuItem: (item: Omit<MenuItem, 'id'>) => void;
+  onOpenItemDetail: (item: MenuItem) => void;
+  onCreateMenuItem: () => void;
 }
 
-export function MenuEditorTab({
-  menuItems,
-  isAdmin,
-  onUpdateMenuItem,
-  onDeleteMenuItem,
-}: MenuEditorTabProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Group by category
-  const itemsByCategory = useMemo(() => {
-    const filtered = menuItems.filter(item =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const grouped: Record<string, MenuItem[]> = {};
-    filtered.forEach(item => {
-      if (!grouped[item.category]) grouped[item.category] = [];
-      grouped[item.category].push(item);
-    });
-
-    return grouped;
-  }, [menuItems, searchQuery]);
+export function MenuGrid({
+  // ... existing destructuring
+  isEditMode,
+  currentUser,
+  onOpenItemDetail,
+  onCreateMenuItem,
+}: MenuGridProps) {
+  const canEdit = currentUser?.role === 'staff' || currentUser?.role === 'admin';
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search menu items..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+    <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
+      {/* Header with Add Item button */}
+      <div className="flex items-center justify-between p-6 border-b bg-white">
+        <h2 className="text-2xl font-bold text-gray-900">Menu</h2>
+        {isEditMode && canEdit && (
+          <button
+            onClick={onCreateMenuItem}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={20} />
+            Add Item
+          </button>
+        )}
       </div>
 
-      {/* Items by category */}
-      <div className="space-y-6 max-h-[50vh] overflow-y-auto">
-        {Object.entries(itemsByCategory).map(([category, items]) => (
-          <div key={category}>
-            <h3 className="text-lg font-bold text-gray-700 border-b-2 border-gray-300 pb-2 mb-3">
-              {category}
-            </h3>
-            <div className="space-y-2">
-              {items.map(item => (
-                <MenuItemRow
-                  key={item.id}
-                  item={item}
-                  isAdmin={isAdmin}
-                  onToggleAvailable={() => onUpdateMenuItem(item.id, { available: !item.available })}
-                  onToggleHot={() => onUpdateMenuItem(item.id, { hot: !item.hot })}
-                  onDelete={() => {
-                    if (confirm('Delete this item?')) {
-                      onDeleteMenuItem(item.id);
-                    }
-                  }}
-                />
-              ))}
+      {/* Menu items grid */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {menuItems.map(item => (
+            <div
+              key={item.id}
+              className="relative bg-white rounded-lg shadow hover:shadow-lg transition"
+            >
+              {/* Edit Mode: Show pencil icon instead of click behavior */}
+              {isEditMode && canEdit ? (
+                <button
+                  onClick={() => onOpenItemDetail(item)}
+                  className="absolute top-2 right-2 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition"
+                  title="Edit item"
+                >
+                  <Pencil size={18} />
+                </button>
+              ) : null}
+
+              {/* Normal Mode: Show clickable card */}
+              {!isEditMode ? (
+                <button
+                  onClick={() => onOpenItemDetail(item)}
+                  className="w-full text-left p-4 hover:bg-gray-50 transition"
+                >
+                  <h3 className="font-bold text-gray-900">{item.name}</h3>
+                  <p className="text-sm text-gray-600">${item.price.toFixed(2)}</p>
+                </button>
+              ) : (
+                <div className="p-4 cursor-default">
+                  <h3 className="font-bold text-gray-900">{item.name}</h3>
+                  <p className="text-sm text-gray-600">${item.price.toFixed(2)}</p>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
 }
+```
 
-// Simple row component
-function MenuItemRow({
+### 4. Update ItemDetailModal.tsx
+
+Add support for edit mode based on user role:
+
+```typescript
+interface ItemDetailModalProps {
+  item: MenuItem | null;  // null = create mode
+  isOpen: boolean;
+  onClose: () => void;
+  currentUser: User | null;
+  isEditMode: boolean;
+  onUpdateMenuItem: (id: string, updates: Partial<MenuItem>) => void;
+  onDeleteMenuItem: (id: string) => void;
+  onCreateMenuItem: (item: Omit<MenuItem, 'id'>) => void;
+  // ... existing props
+}
+
+export function ItemDetailModal({
   item,
-  isAdmin,
-  onToggleAvailable,
-  onToggleHot,
-  onDelete,
-}: {
-  item: MenuItem;
-  isAdmin: boolean;
-  onToggleAvailable: () => void;
-  onToggleHot: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="font-semibold text-gray-900">{item.name}</h4>
-        <span className="text-lg font-bold text-blue-600">${item.price.toFixed(2)}</span>
-      </div>
+  isOpen,
+  onClose,
+  currentUser,
+  isEditMode,
+  onUpdateMenuItem,
+  onDeleteMenuItem,
+  onCreateMenuItem,
+  // ... existing destructuring
+}: ItemDetailModalProps) {
+  const isAdmin = currentUser?.role === 'admin';
+  const isStaff = currentUser?.role === 'staff';
+  const canEdit = isAdmin || isStaff;
+  const isCreateMode = isEditMode && !item;
 
-      <div className="flex items-center gap-6 mb-3">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={item.available}
-            onChange={onToggleAvailable}
-            className="w-4 h-4 accent-green-600 rounded cursor-pointer"
-          />
-          <span className="text-sm font-medium text-gray-700">Available</span>
-        </label>
+  // ... existing state for modifiers, quantity, etc.
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={item.hot}
-            onChange={onToggleHot}
-            className="w-4 h-4 accent-red-600 rounded cursor-pointer"
-          />
-          <span className="text-sm font-medium text-gray-700">Hot</span>
-        </label>
-      </div>
+  if (!isOpen || (!item && !isCreateMode)) return null;
 
-      {isAdmin && (
-        <div className="flex gap-2">
-          <button className="btn-small flex items-center gap-1 text-red-600 hover:bg-red-50 border border-red-300">
-            <Trash2 size={14} />
-            Delete
-          </button>
+  // EDIT MODE
+  if (isEditMode && canEdit && item) {
+    return (
+      <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
+            <h2 className="text-2xl font-bold">
+              {isCreateMode ? 'Create Item' : 'Edit Item'}
+            </h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* Edit Form */}
+          <div className="p-6 space-y-4">
+            {/* Staff: Limited editing (available + hot toggles only) */}
+            {isStaff && !isAdmin && item && (
+              <>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item.available}
+                    onChange={(e) => onUpdateMenuItem(item.id, { available: e.target.checked })}
+                    className="w-4 h-4 accent-green-600 rounded"
+                  />
+                  <span className="font-medium">Available</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item.hot}
+                    onChange={(e) => onUpdateMenuItem(item.id, { hot: e.target.checked })}
+                    className="w-4 h-4 accent-red-600 rounded"
+                  />
+                  <span className="font-medium">Hot</span>
+                </label>
+              </>
+            )}
+
+            {/* Admin: Full editing */}
+            {isAdmin && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={item?.name || ''}
+                    onChange={(e) => onUpdateMenuItem(item!.id, { name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={item?.price || 0}
+                    onChange={(e) => onUpdateMenuItem(item!.id, { price: parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
+                  </label>
+                  <input
+                    type="text"
+                    value={item?.category || ''}
+                    onChange={(e) => onUpdateMenuItem(item!.id, { category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={item?.description || ''}
+                    onChange={(e) => onUpdateMenuItem(item!.id, { description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    rows={3}
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item?.available || false}
+                    onChange={(e) => onUpdateMenuItem(item!.id, { available: e.target.checked })}
+                    className="w-4 h-4 accent-green-600 rounded"
+                  />
+                  <span className="font-medium">Available</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={item?.hot || false}
+                    onChange={(e) => onUpdateMenuItem(item!.id, { hot: e.target.checked })}
+                    className="w-4 h-4 accent-red-600 rounded"
+                  />
+                  <span className="font-medium">Hot</span>
+                </label>
+
+                <div className="border-t pt-4">
+                  <button
+                    onClick={() => {
+                      if (confirm('Delete this item?')) {
+                        onDeleteMenuItem(item!.id);
+                        onClose();
+                      }
+                    }}
+                    className="btn-danger w-full flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={18} />
+                    Delete Item
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Create Mode (admin only) */}
+            {isCreateMode && isAdmin && (
+              // Similar form to edit, but for creating new item
+              // Call onCreateMenuItem when done
+              null
+            )}
+          </div>
+
+          <div className="border-t p-6 flex gap-2 justify-end">
+            <button onClick={onClose} className="btn-secondary">
+              Close
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // NORMAL VIEW MODE (existing code)
+  return (
+    <div>
+      {/* ... existing view-only modal code ... */}
     </div>
   );
 }
@@ -591,26 +458,32 @@ function MenuItemRow({
 
 ---
 
-## That's It!
+## Summary of Changes
 
-This gives you:
-- Staff can toggle items on/off and hot/cold
-- Admin can delete items (we can add full edit modal later if you want)
-- Simple role checks on backend
-- Uses your existing optimistic update pattern
-- Clean UI in Settings modal
+**What's new:**
+1. SettingsModal loses the "Edit Menu" tab
+2. SettingsModal gains an "Edit Mode" toggle (Account tab only)
+3. MenuGrid shows "Add Item" button when Edit Mode is on
+4. MenuGrid items show pencil icon when Edit Mode is on (click to edit)
+5. ItemDetailModal gets enhanced to support edit mode
+6. Staff can toggle available/hot
+7. Admin can edit all fields and delete
 
-**To add later** (if you want):
-- Full edit modal for admins to change prices/names
-- Create new items
-- Edit modifiers
-- But honestly, this might be enough for a hobby project!
+**What stays the same:**
+- All backend routes already exist
+- Menu viewing experience unchanged when not in Edit Mode
+- Existing ItemDetailModal for viewing items
 
-**Test it**:
-1. Start backend: `cd backend && npm run dev`
-2. Start frontend: `npm run dev`
-3. Login as staff/admin via CAS
-4. Open Settings → Edit Menu tab
-5. Toggle some items!
+---
 
-Simple. No fluff. Just code.
+## Testing Checklist
+
+- [ ] Toggle Edit Mode on/off in Settings
+- [ ] In normal mode: clicking items opens detail view (existing behavior)
+- [ ] In Edit Mode: pencil icon appears, clicking it opens edit modal
+- [ ] Staff: Only see available/hot toggles
+- [ ] Admin: See all fields + delete button
+- [ ] "Add Item" button only visible in Edit Mode for staff/admin
+- [ ] Changes persist after refresh
+- [ ] Errors display notifications
+- [ ] Switching between Edit Mode and normal mode works smoothly

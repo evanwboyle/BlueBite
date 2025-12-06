@@ -489,7 +489,24 @@ export const api = {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorData = await response.json().catch(() => null);
+
+        // Handle specific error cases
+        if (response.status === 409 && errorData?.code === 'ITEM_IN_USE') {
+          throw new Error(
+            errorData.message ||
+            'Cannot delete menu item. It has been used in orders.'
+          );
+        }
+
+        if (response.status === 404) {
+          throw new Error('Menu item not found');
+        }
+
+        throw new Error(
+          errorData?.message ||
+          `HTTP ${response.status}: ${response.statusText}`
+        );
       }
     } catch (error) {
       console.error('API Error - Failed to delete menu item:', error);

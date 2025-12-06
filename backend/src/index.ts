@@ -145,7 +145,10 @@ app.get("/api/menu", async (req: Request, res: Response) => {
     const { buttery } = req.query;
 
     const items = await prisma.menuItem.findMany({
-      where: buttery ? { buttery: buttery as string } : undefined,
+      where: {
+        archived: false,
+        ...(buttery && { buttery: buttery as string }),
+      },
       include: { modifiers: true },
       orderBy: { category: "asc" },
     });
@@ -435,15 +438,49 @@ app.put("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res
   }
 });
 
-// Admin only: Delete menu item
+// Admin only: Archive (soft-delete) menu item
 app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { itemId } = req.params;
-    await prisma.menuItem.delete({ where: { id: itemId } });
-    res.json({ success: true });
+
+    // Check if the menu item exists
+    const menuItem = await prisma.menuItem.findUnique({
+      where: { id: itemId }
+    });
+
+    if (!menuItem) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Menu item not found',
+        code: 'ITEM_NOT_FOUND'
+      });
+      return;
+    }
+
+    // Soft-delete: Set archived to true and append (ARCHIVED) to name
+    const archivedName = menuItem.name.includes('(ARCHIVED)')
+      ? menuItem.name
+      : `${menuItem.name} (ARCHIVED)`;
+
+    await prisma.menuItem.update({
+      where: { id: itemId },
+      data: {
+        archived: true,
+        name: archivedName,
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Menu item "${menuItem.name}" archived successfully`
+    });
   } catch (error) {
-    console.error('Delete item error:', error);
-    res.status(500).json({ error: 'Failed to delete item' });
+    console.error('Archive item error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to archive menu item',
+      code: 'ARCHIVE_ERROR'
+    });
   }
 });
 

@@ -3,69 +3,63 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-// User model - identified by NetID
 model User {
-  netId     String   @id // Yale NetID (e.g., "abc123")
+  netId     String   @id
   name      String?
-  role      String   @default("customer") // customer, staff, admin
+  role      String   @default("customer")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  orders Order[]
+  orders    Order[]
 }
 
-// Menu Item model
 model MenuItem {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
   description String?
   price       Float
   category    String
-  available   Boolean  @default(true)
-  hot         Boolean  @default(false)
+  available   Boolean     @default(true)
+  hot         Boolean     @default(false)
   buttery     String?
   image       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  archived    Boolean     @default(false)
   modifiers   Modifier[]
   orderItems  OrderItem[]
 
   @@index([buttery])
+  @@index([archived])
 }
 
-// Modifier/Add-on model
 model Modifier {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  menuItemId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  menuItem         MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  name               String
+  description        String?
+  price              Float
+  menuItemId         String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  menuItem           MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   orderItemModifiers OrderItemModifier[]
 
   @@index([menuItemId])
 }
 
-// Order model
 model Order {
-  id          String   @id @default(cuid())
-  netId       String
-  buttery     String?
-  status      String   @default("pending") // pending, preparing, ready, completed, cancelled
-  totalPrice  Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user       User         @relation(fields: [netId], references: [netId], onDelete: Cascade)
+  id         String      @id @default(cuid())
+  netId      String
+  buttery    String?
+  status     String      @default("pending")
+  totalPrice Float
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  user       User        @relation(fields: [netId], references: [netId], onDelete: Cascade)
   orderItems OrderItem[]
 
   @@index([netId])
@@ -73,33 +67,29 @@ model Order {
   @@index([buttery])
 }
 
-// Order Item model (items in an order)
 model OrderItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  menuItemId  String
-  quantity    Int
-  price       Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  order      Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem   MenuItem              @relation(fields: [menuItemId], references: [id])
+  id         String              @id @default(cuid())
+  orderId    String
+  menuItemId String
+  quantity   Int
+  price      Float
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  menuItem   MenuItem            @relation(fields: [menuItemId], references: [id])
+  order      Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   modifiers  OrderItemModifier[]
 
   @@index([orderId])
   @@index([menuItemId])
 }
 
-// Junction table for OrderItem and Modifier (many-to-many)
 model OrderItemModifier {
-  id               String   @id @default(cuid())
-  orderItemId      String
-  modifierId       String
-  createdAt        DateTime @default(now())
-
-  orderItem        OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  modifier         Modifier  @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  orderItemId String
+  modifierId  String
+  createdAt   DateTime  @default(now())
+  modifier    Modifier  @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   @@index([orderItemId])
   @@index([modifierId])

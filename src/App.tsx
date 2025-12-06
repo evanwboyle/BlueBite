@@ -254,6 +254,125 @@ function App() {
     });
   };
 
+  const handleUpdateMenuItem = (itemId: string, updates: Partial<MenuItem>) => {
+    // Store reference to original item for potential rollback
+    const originalItem = menuItems.find(item => item.id === itemId);
+
+    // Use optimistic update pattern with retry logic
+    optimisticUpdate.execute({
+      // 1. Apply optimistic update immediately - UI updates instantly
+      optimisticUpdate: () => {
+        const newMenuItems = menuItems.map(item =>
+          item.id === itemId ? { ...item, ...updates } : item
+        );
+        setMenuItems(newMenuItems);
+
+        // Update cache with optimistic state
+        storage.setCachedMenu(newMenuItems, selectedButtery);
+
+        setNotification('Menu item updated!');
+        setTimeout(() => setNotification(null), 2000);
+      },
+
+      // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)
+      syncFn: async () => {
+        // Determine which API endpoint to use based on user role and update type
+        const isToggleOnly = Object.keys(updates).every(key =>
+          key === 'disabled' || key === 'hot'
+        );
+
+        if (isToggleOnly) {
+          // Staff can use toggle endpoint for available/hot
+          return api.toggleMenuItem(itemId, {
+            available: updates.disabled !== undefined ? !updates.disabled : undefined,
+            hot: updates.hot,
+          });
+        } else {
+          // Admin can use full update endpoint
+          return api.updateMenuItem(itemId, updates);
+        }
+      },
+
+      // 3. On success - verify server state matches optimistic state
+      onSuccess: (updatedItem) => {
+        const newMenuItems = menuItems.map(item =>
+          item.id === itemId ? updatedItem : item
+        );
+        setMenuItems(newMenuItems);
+        storage.setCachedMenu(newMenuItems, selectedButtery);
+      },
+
+      // 4. On error (after all 3 retries exhausted) - show warning and restore item
+      onError: (error, attemptCount) => {
+        console.error(`Failed to sync menu item update after ${attemptCount} attempts:`, error);
+        setNotification(`Warning: Menu item update failed (${error.message})`);
+        setTimeout(() => setNotification(null), 5000);
+
+        // Restore the original item if we still have a reference
+        if (originalItem) {
+          const restoredMenuItems = menuItems.map(item =>
+            item.id === itemId ? originalItem : item
+          );
+          setMenuItems(restoredMenuItems);
+          storage.setCachedMenu(restoredMenuItems, selectedButtery);
+        }
+      },
+
+      // 5. Unique ID for this update
+      id: `menu-item-${itemId}-update`,
+    });
+  };
+
+  const handleCreateMenuItem = (item: Omit<MenuItem, 'id'>) => {
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-${Date.now()}`;
+    const tempItem: MenuItem = { ...item, id: tempId };
+
+    // Use optimistic update pattern with retry logic
+    optimisticUpdate.execute({
+      // 1. Apply optimistic update immediately - UI updates instantly
+      optimisticUpdate: () => {
+        const newMenuItems = [...menuItems, tempItem];
+        setMenuItems(newMenuItems);
+
+        // Update cache with optimistic state
+        storage.setCachedMenu(newMenuItems, selectedButtery);
+
+        setNotification('Menu item created!');
+        setTimeout(() => setNotification(null), 2000);
+      },
+
+      // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)
+      syncFn: () => api.createMenuItem(item),
+
+      // 3. On success - replace temp item with server item (has real ID)
+      onSuccess: (createdItem) => {
+        const newMenuItems = menuItems.map(i =>
+          i.id === tempId ? createdItem : i
+        ).filter(i => i.id !== tempId);
+        newMenuItems.push(createdItem);
+
+        setMenuItems(newMenuItems);
+        storage.setCachedMenu(newMenuItems, selectedButtery);
+      },
+
+      // 4. On error (after all 3 retries exhausted) - show warning and remove temp item
+      onError: (error, attemptCount) => {
+        console.error(`Failed to sync menu item creation after ${attemptCount} attempts:`, error);
+        setNotification(`Warning: Menu item creation failed (${error.message})`);
+        setTimeout(() => setNotification(null), 5000);
+
+        // Remove the temporary item
+        const restoredMenuItems = menuItems.filter(item => item.id !== tempId);
+        setMenuItems(restoredMenuItems);
+        storage.setCachedMenu(restoredMenuItems, selectedButtery);
+      },
+
+      // 5. Unique ID for this update
+      id: `menu-item-create-${tempId}`,
+    });
+  };
+
   const handleDeleteMenuItem = (itemId: string) => {
     // Store reference to deleted item for potential rollback
     const deletedItem = menuItems.find(item => item.id === itemId);
@@ -337,6 +456,8 @@ function App() {
               onCartClick={() => setIsCartOpen(true)}
               isEditMode={isEditMode}
               currentUser={currentUser}
+              onUpdateMenuItem={handleUpdateMenuItem}
+              onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
             />
           </div>

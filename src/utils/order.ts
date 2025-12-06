@@ -4,9 +4,12 @@ import type { Order, MenuItem } from '../types';
  * Enriches orders with menu item names by looking up menuItemId in the provided menu.
  * This is critical because backend orders only contain item IDs, not names.
  *
+ * **Optimization**: Only enriches orders from the past 12 hours (matching display logic).
+ * Older orders are filtered out to avoid unnecessary processing of orders that won't be displayed.
+ *
  * @param orders - Orders from backend (items may have missing names)
  * @param menuItems - Menu items to lookup names from
- * @returns Orders with fully populated item names
+ * @returns Orders with fully populated item names (only for orders within 12 hours)
  *
  * **Defensive Programming**:
  * - Validates menu items exist before enrichment
@@ -23,6 +26,12 @@ export const enrichOrdersWithMenuNames = (
     return [];
   }
 
+  // Filter to only orders from the past 12 hours (optimization)
+  // Older orders won't be displayed in OrderManager, so skip enrichment
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+  const now = Date.now();
+  const ordersToEnrich = orders.filter(o => (now - o.placedAt) <= TWELVE_HOURS_MS);
+
   // Warn if menu is empty (this indicates a race condition or API failure)
   if (!menuItems || menuItems.length === 0) {
     console.warn('[enrichOrdersWithMenuNames] No menu items available for enrichment. Orders will show "Unknown Item".');
@@ -35,7 +44,7 @@ export const enrichOrdersWithMenuNames = (
   // Track failed lookups for debugging
   const failedLookups = new Set<string>();
 
-  const enrichedOrders = orders.map((order) => ({
+  const enrichedOrders = ordersToEnrich.map((order) => ({
     ...order,
     items: (order.items || []).map((item, index) => {
       // Validate item has required menuItemId
