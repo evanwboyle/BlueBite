@@ -159,7 +159,7 @@ export function ItemDetailModal({
         onClick={onClose}
       >
         <div
-          className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl"
+          className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -243,7 +243,7 @@ export function ItemDetailModal({
         onClick={onClose}
       >
         <div
-          className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl"
+          className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -406,7 +406,7 @@ export function ItemDetailModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl"
+        className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Close */}
