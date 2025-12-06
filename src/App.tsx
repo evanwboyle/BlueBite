@@ -27,6 +27,7 @@ function App() {
   const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
   const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>([ ]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Initialize on mount
   useEffect(() => {
@@ -253,6 +254,51 @@ function App() {
     });
   };
 
+  const handleDeleteMenuItem = (itemId: string) => {
+    // Store reference to deleted item for potential rollback
+    const deletedItem = menuItems.find(item => item.id === itemId);
+
+    // Use optimistic update pattern with retry logic
+    optimisticUpdate.execute({
+      // 1. Apply optimistic update immediately - UI updates instantly
+      optimisticUpdate: () => {
+        const newMenuItems = menuItems.filter(item => item.id !== itemId);
+        setMenuItems(newMenuItems);
+
+        // Update cache with optimistic state
+        storage.setCachedMenu(newMenuItems, selectedButtery);
+
+        setNotification('Menu item deleted!');
+        setTimeout(() => setNotification(null), 2000);
+      },
+
+      // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)
+      syncFn: () => api.deleteMenuItem(itemId),
+
+      // 3. On success - silent (optimistic update already applied)
+      onSuccess: () => {
+        // Deletion confirmed by server, no additional action needed
+      },
+
+      // 4. On error (after all 3 retries exhausted) - show warning and restore item
+      onError: (error, attemptCount) => {
+        console.error(`Failed to sync menu item deletion after ${attemptCount} attempts:`, error);
+        setNotification(`Warning: Menu item deletion failed (${error.message})`);
+        setTimeout(() => setNotification(null), 5000);
+
+        // Restore the deleted item if we still have a reference
+        if (deletedItem) {
+          const restoredMenuItems = [...menuItems, deletedItem];
+          setMenuItems(restoredMenuItems);
+          storage.setCachedMenu(restoredMenuItems, selectedButtery);
+        }
+      },
+
+      // 5. Unique ID for this update
+      id: `menu-item-${itemId}-delete`,
+    });
+  };
+
   const handleButteryChange = (buttery: string | null) => {
     setSelectedButtery(buttery);
     storage.setSelectedButtery(buttery);
@@ -284,7 +330,15 @@ function App() {
         {/* Left Panel - Ordering */}
         <div style={{ flex: `0 0 ${leftPanelWidth}%` }} className="flex flex-col min-w-0">
           <div className="bg-white shadow border border-gray-200 flex-1 flex flex-col overflow-hidden">
-            <MenuGrid items={menuItems} onAddToCart={handleAddToCart} cartCount={cartItems.length} onCartClick={() => setIsCartOpen(true)} />
+            <MenuGrid
+              items={menuItems}
+              onAddToCart={handleAddToCart}
+              cartCount={cartItems.length}
+              onCartClick={() => setIsCartOpen(true)}
+              isEditMode={isEditMode}
+              currentUser={currentUser}
+              onDeleteMenuItem={handleDeleteMenuItem}
+            />
           </div>
         </div>
 
@@ -337,6 +391,8 @@ function App() {
           onClose={() => setIsSettingsOpen(false)}
           currentUser={currentUser}
           onUserLogout={() => setCurrentUser(null)}
+          isEditMode={isEditMode}
+          onToggleEditMode={(enabled) => setIsEditMode(enabled)}
         />
       )}
     </div>

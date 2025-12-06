@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import session from "express-session";
 import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
+import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 
 dotenv.config();
 
@@ -155,10 +156,10 @@ app.get("/api/menu", async (req: Request, res: Response) => {
   }
 });
 
-// Create menu item
-app.post("/api/menu", async (req: Request, res: Response) => {
+// Create menu item (Admin only)
+app.post("/api/menu", requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { name, description, price, category, available, image } = req.body;
+    const { name, description, price, category, available, image, hot, buttery } = req.body;
 
     if (!name || typeof price !== "number" || !category) {
       res.status(400).json({ error: "Name, price, and category are required" });
@@ -172,6 +173,8 @@ app.post("/api/menu", async (req: Request, res: Response) => {
         price,
         category,
         available: available !== false,
+        hot: hot || false,
+        buttery,
         image,
       },
       include: { modifiers: true },
@@ -216,8 +219,8 @@ app.get("/api/menu/:itemId", async (req: Request, res: Response) => {
   }
 });
 
-// Create modifier for menu item
-app.post("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
+// Create modifier for menu item (Admin only)
+app.post("/api/menu/:itemId/modifiers", requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { itemId } = req.params;
     const { name, description, price } = req.body;
@@ -382,6 +385,95 @@ app.get("/api/butteries", async (_req: Request, res: Response) => {
     res.json(formatted);
   } catch {
     res.status(500).json({ error: "Failed to fetch butteries" });
+  }
+});
+
+// ============================================
+// MENU EDITING ROUTES (RBAC Protected)
+// ============================================
+
+// Staff + Admin: Toggle availability or hot status
+app.patch("/api/menu/:itemId/toggle", requireAuth, requireStaff, async (req: Request, res: Response) => {
+  try {
+    const { itemId } = req.params;
+    const { available, hot } = req.body;
+
+    // Only allow updating available or hot (staff limitation)
+    const updates: any = {};
+    if (typeof available === 'boolean') updates.available = available;
+    if (typeof hot === 'boolean') updates.hot = hot;
+
+    const item = await prisma.menuItem.update({
+      where: { id: itemId },
+      data: updates,
+      include: { modifiers: true },
+    });
+
+    res.json(item);
+  } catch (error) {
+    console.error('Toggle item error:', error);
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// Admin only: Update entire menu item
+app.put("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { itemId } = req.params;
+    const { name, description, price, category, available, hot, buttery, image } = req.body;
+
+    const item = await prisma.menuItem.update({
+      where: { id: itemId },
+      data: { name, description, price, category, available, hot, buttery, image },
+      include: { modifiers: true },
+    });
+
+    res.json(item);
+  } catch (error) {
+    console.error('Update item error:', error);
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// Admin only: Delete menu item
+app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { itemId } = req.params;
+    await prisma.menuItem.delete({ where: { id: itemId } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete item error:', error);
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+// Admin only: Update modifier
+app.put("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { modifierId } = req.params;
+    const { name, description, price } = req.body;
+
+    const modifier = await prisma.modifier.update({
+      where: { id: modifierId },
+      data: { name, description, price },
+    });
+
+    res.json(modifier);
+  } catch (error) {
+    console.error('Update modifier error:', error);
+    res.status(500).json({ error: 'Failed to update modifier' });
+  }
+});
+
+// Admin only: Delete modifier
+app.delete("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { modifierId } = req.params;
+    await prisma.modifier.delete({ where: { id: modifierId } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete modifier error:', error);
+    res.status(500).json({ error: 'Failed to delete modifier' });
   }
 });
 

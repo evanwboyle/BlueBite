@@ -1,4 +1,4 @@
-import type { MenuItem, Order, OrderItem } from '../types';
+import type { MenuItem, Modifier, Order, OrderItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -374,6 +374,193 @@ export const api = {
       };
     } catch (error) {
       console.error('API Error - Failed to update order:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new menu item (admin only)
+   */
+  async createMenuItem(item: Omit<MenuItem, 'id'>): Promise<MenuItem> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: item.name,
+          description: item.description || null,
+          price: item.price,
+          category: item.category,
+          hot: item.hot,
+          available: !item.disabled,
+          image: item.image || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const backendItem: BackendMenuItem = await response.json();
+      return transformMenuItem(backendItem);
+    } catch (error) {
+      console.error('API Error - Failed to create menu item:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update a menu item (full update, admin only)
+   */
+  async updateMenuItem(id: string, updates: Partial<Omit<MenuItem, 'id'>>): Promise<MenuItem> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description || null,
+          price: updates.price,
+          category: updates.category,
+          hot: updates.hot,
+          available: updates.disabled !== undefined ? !updates.disabled : undefined,
+          image: updates.image || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const backendItem: BackendMenuItem = await response.json();
+      return transformMenuItem(backendItem);
+    } catch (error) {
+      console.error('API Error - Failed to update menu item:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Toggle menu item availability or hot status (staff+admin)
+   */
+  async toggleMenuItem(
+    id: string,
+    updates: { available?: boolean; hot?: boolean }
+  ): Promise<MenuItem> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu/${id}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const backendItem: BackendMenuItem = await response.json();
+      return transformMenuItem(backendItem);
+    } catch (error) {
+      console.error('API Error - Failed to toggle menu item:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a menu item (admin only)
+   */
+  async deleteMenuItem(id: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('API Error - Failed to delete menu item:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update a modifier for a menu item (admin only)
+   */
+  async updateModifier(
+    itemId: string,
+    modifierId: string,
+    updates: Partial<Modifier>
+  ): Promise<Modifier> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu/${itemId}/modifiers/${modifierId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description || null,
+          price: updates.price,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      interface BackendModifierResponse {
+        id: string;
+        name: string;
+        description: string | null;
+        price: number;
+      }
+
+      const modifier: BackendModifierResponse = await response.json();
+      return {
+        id: modifier.id,
+        name: modifier.name,
+        price: modifier.price,
+        description: modifier.description || undefined,
+      };
+    } catch (error) {
+      console.error('API Error - Failed to update modifier:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a modifier from a menu item (admin only)
+   */
+  async deleteModifier(itemId: string, modifierId: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu/${itemId}/modifiers/${modifierId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('API Error - Failed to delete modifier:', error);
       throw error;
     }
   },

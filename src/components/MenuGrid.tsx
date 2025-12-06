@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { MenuItem, OrderItem } from '../types';
-import { Plus } from 'lucide-react';
+import type { MenuItem, OrderItem, User } from '../types';
+import { Plus, Trash2 } from 'lucide-react';
 import { ItemDetailModal } from './ItemDetailModal';
 
 interface MenuGridProps {
@@ -8,14 +8,35 @@ interface MenuGridProps {
   onAddToCart: (item: OrderItem) => void;
   cartCount?: number;
   onCartClick?: () => void;
+  isEditMode?: boolean;
+  currentUser?: User | null;
+  onDeleteMenuItem?: (id: string) => void;
 }
 
-export function MenuGrid({ items, onAddToCart, cartCount = 0, onCartClick }: MenuGridProps) {
+export function MenuGrid({
+  items,
+  onAddToCart,
+  cartCount = 0,
+  onCartClick,
+  isEditMode = false,
+  currentUser = null,
+  onDeleteMenuItem
+}: MenuGridProps) {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
 
   const handleAddItem = (item: MenuItem) => {
     setSelectedItem(item);
   };
+
+  const handleDeleteClick = (e: React.MouseEvent, itemId: string) => {
+    e.stopPropagation();
+    if (onDeleteMenuItem) {
+      onDeleteMenuItem(itemId);
+    }
+  };
+
+  const isAdminOrStaff = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+  const showEditControls = isEditMode && isAdminOrStaff;
 
   const categories = [...new Set(items.map(i => i.category))];
 
@@ -56,13 +77,29 @@ export function MenuGrid({ items, onAddToCart, cartCount = 0, onCartClick }: Men
                     key={item.id}
                     className="relative group"
                   >
-                    <div className="bg-white rounded-lg shadow hover:shadow-lg transition border border-gray-200 overflow-hidden h-full flex flex-col">
+                    <div className={`bg-white rounded-lg shadow hover:shadow-lg transition border border-gray-200 overflow-hidden h-full flex flex-col ${showEditControls ? 'opacity-90' : ''}`}>
                       <div className="h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-t-lg overflow-hidden relative">
                         {item.image ? (
                           <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-gray-400">
                             <span className="text-sm">No image</span>
+                          </div>
+                        )}
+
+                        {/* Edit mode controls in top-right of image */}
+                        {showEditControls && (
+                          <div className="absolute top-2 right-2 flex gap-1">
+                            {currentUser?.role === 'admin' && (
+                              <button
+                                onClick={(e) => handleDeleteClick(e, item.id)}
+                                className="w-8 h-8 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-md transition transform hover:scale-110"
+                                aria-label={`Delete ${item.name}`}
+                                title="Delete item"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -77,13 +114,16 @@ export function MenuGrid({ items, onAddToCart, cartCount = 0, onCartClick }: Men
                         <div className="mt-auto" />
                       </div>
 
-                      <button
-                        onClick={() => handleAddItem(item)}
-                        className="absolute bottom-3 right-3 w-10 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg transition transform hover:scale-110"
-                        aria-label={`Add ${item.name}`}
-                      >
-                        <Plus size={20} />
-                      </button>
+                      {/* Only show add button when NOT in edit mode */}
+                      {!showEditControls && (
+                        <button
+                          onClick={() => handleAddItem(item)}
+                          className="absolute bottom-3 right-3 w-10 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg transition transform hover:scale-110"
+                          aria-label={`Add ${item.name}`}
+                        >
+                          <Plus size={20} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
