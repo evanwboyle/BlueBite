@@ -17,6 +17,8 @@ export function ButterySelector({ selected, options, onChange }: ButterySelector
 
   const displayName = selected || 'All Butteries';
 
+  console.log('ButterySelector State:', { isOpen });
+
   return (
     <div className="relative">
       <button
@@ -31,7 +33,10 @@ export function ButterySelector({ selected, options, onChange }: ButterySelector
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[280px] max-h-[400px] overflow-y-auto">
+        <div
+          className="absolute left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-y-auto"
+          style={{ width: '25%', maxHeight: '25vh' }}
+        >
           <button
             onClick={() => {
               onChange(null);

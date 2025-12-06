@@ -1,6 +1,7 @@
 import { X, Settings, LogOut } from 'lucide-react';
 import { API_BASE_URL } from '../utils/config';
 import type { User } from '../types';
+import { ButterySelector } from './ButterySelector';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,6 +10,9 @@ interface SettingsModalProps {
   onUserLogout: () => void;
   isEditMode: boolean;
   onToggleEditMode: (enabled: boolean) => void;
+  selectedButtery: string | null;
+  butteryOptions: Array<{ name: string; itemCount: number }>;
+  onButteryChange: (buttery: string | null) => void;
 }
 
 export function SettingsModal({
@@ -17,8 +21,17 @@ export function SettingsModal({
   currentUser,
   onUserLogout,
   isEditMode,
-  onToggleEditMode
+  onToggleEditMode,
+  selectedButtery,
+  butteryOptions,
+  onButteryChange
 }: SettingsModalProps) {
+
+  console.log('SettingsModal Props:', {
+    selectedButtery,
+    butteryOptions,
+    onButteryChange
+  });
 
   if (!isOpen) return null;
 
@@ -44,7 +57,7 @@ export function SettingsModal({
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }} onClick={onClose}>
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[95vh] shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header with Close */}
         <div className="sticky top-0 flex items-center justify-between p-6 border-b bg-white z-10">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -61,7 +74,7 @@ export function SettingsModal({
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 p-6">
           <div className="space-y-6">
             {/* Account Section */}
             <div className="space-y-4">
@@ -125,6 +138,16 @@ export function SettingsModal({
                   Login with Yale CAS
                 </button>
               )}
+            </div>
+
+            {/* Buttery Selector Section */}
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-lg font-semibold text-gray-900">Buttery Selector</h3>
+              <ButterySelector
+                selected={selectedButtery}
+                options={butteryOptions}
+                onChange={onButteryChange}
+              />
             </div>
           </div>
         </div>

@@ -393,6 +393,9 @@ function App() {
           onUserLogout={() => setCurrentUser(null)}
           isEditMode={isEditMode}
           onToggleEditMode={(enabled) => setIsEditMode(enabled)}
+          selectedButtery={selectedButtery}
+          butteryOptions={butteryOptions}
+          onButteryChange={handleButteryChange}
         />
       )}
     </div>
