@@ -15,7 +15,7 @@ export function Header({ onSettingsClick }: HeaderProps) {
         </div>
 
         <nav className="hidden md:flex gap-6 text-sm font-medium">
-          <button onClick={onSettingsClick} className="hover:bg-blue-700 px-3 py-2 rounded transition">Settings</button>
+          <button onClick={onSettingsClick} className="hover:bg-blue-700 px-3 py-2 rounded transition pr-4">Settings</button>
         </nav>
         <button className="md:hidden">
           <Menu size={24} />

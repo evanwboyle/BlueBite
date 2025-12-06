@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Order } from '../types';
-import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 
@@ -15,6 +15,8 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [hideCompleted, setHideCompleted] = useState(false);
   const [userCache, setUserCache] = useState<Map<string, YaliesUser | null>>(new Map());
   const [checkedItems, setCheckedItems] = useState<Map<string, Set<number>>>(new Map());
+  const [locked, setLocked] = useState(false);
+  const [unlockCountdown, setUnlockCountdown] = useState<number | null>(null);
 
   // Filter to past 12 hours and sort oldest to newest
   const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -37,6 +39,23 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
     () => ordersWithinPast12h.map(o => o.netId),
     [ordersWithinPast12h]
   );
+
+  // Handle unlock countdown timer
+  useEffect(() => {
+    if (unlockCountdown === null) return;
+
+    if (unlockCountdown === 0) {
+      setLocked(false);
+      setUnlockCountdown(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setUnlockCountdown(unlockCountdown - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [unlockCountdown]);
 
   // Fetch Yalies user data for orders
   useEffect(() => {
@@ -120,13 +139,33 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   };
 
   return (
-    <div className="glass-container rounded-xl h-full flex flex-col">
+    <div className="glass-container rounded-xl h-full flex flex-col relative">
       {/* Header */}
       <div className="glass-header p-5 flex items-center justify-between rounded-t-xl">
         <h2 className="text-xl font-extrabold text-white tracking-wide">
           Orders <span className="text-gray-400 font-semibold">({sortedOrders.length}/{ordersWithinPast12h.length})</span>
         </h2>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (locked) {
+                setUnlockCountdown(5);
+              } else {
+                setLocked(true);
+              }
+            }}
+            className={`glass-button ${locked ? 'glass-button-active' : ''} px-4 py-2 rounded-lg text-sm flex items-center gap-2`}
+            title={locked ? 'Click to unlock (5 second countdown)' : 'Lock orders while you order'}
+            disabled={unlockCountdown !== null}
+          >
+            {unlockCountdown !== null ? (
+              <span className="font-bold text-base">{unlockCountdown}</span>
+            ) : locked ? (
+              <LockOpen size={16} />
+            ) : (
+              <Lock size={16} />
+            )}
+          </button>
           <button
             onClick={() => setHideCompleted(!hideCompleted)}
             className={`glass-button ${hideCompleted ? 'glass-button-active' : ''} px-4 py-2 rounded-lg text-sm flex items-center gap-2`}
@@ -148,7 +187,8 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
       </div>
 
       {/* Orders List */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 relative">
+        <div className={`absolute inset-0 overflow-y-auto p-3 ${locked ? 'blur-sm pointer-events-none' : ''} transition-all`}>
         {sortedOrders.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -311,6 +351,16 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                 )}
               </div>
             ))}
+          </div>
+        )}
+        </div>
+
+        {/* Lock Overlay */}
+        {locked && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-xl z-40 pointer-events-none">
+            <div className="text-center">
+              <p className="text-xl font-bold text-white tracking-wide">Orders locked while you order...</p>
+            </div>
           </div>
         )}
       </div>
