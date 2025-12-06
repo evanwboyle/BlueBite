@@ -445,7 +445,7 @@ function App() {
       )}
 
       {/* Main Layout with Resizable Divider */}
-      <div className="flex-1 flex overflow-hidden gap-4 p-4">
+      <div className="flex-1 flex overflow-hidden gap-1 p-1">
         {/* Left Panel - Ordering */}
         <div style={{ flex: `0 0 ${leftPanelWidth}%` }} className="flex flex-col min-w-0">
           <div className="bg-white shadow flex-1 flex flex-col overflow-hidden">
@@ -487,11 +487,11 @@ function App() {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
           }}
-          className="w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200 flex-shrink-0"
+          className="w-3 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200 flex-shrink-0"
         />
 
         {/* Right Side - Order Manager */}
-        <div style={{ flex: `0 0 ${100 - leftPanelWidth}%` }} className="flex flex-col min-w-0">
+        <div style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 20px)` }} className="flex flex-col min-w-0 overflow-hidden">
           <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
         </div>
       </div>

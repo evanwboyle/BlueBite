@@ -267,7 +267,7 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       netId: string;
       totalPrice: number;
       buttery?: string;
-      items?: Array<{ menuItemId: string; quantity: number; price: number }>;
+      items?: Array<{ menuItemId: string; quantity: number; price: number; modifiers?: string[] }>;
     };
 
     if (!netId || typeof totalPrice !== "number") {
@@ -282,6 +282,9 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       create: { netId, role: "customer" },
     });
 
+    // For each item with modifiers, we need to:
+    // 1. Look up modifier IDs by name for the menu item
+    // 2. Create OrderItemModifier junction records
     const order = await prisma.order.create({
       data: {
         netId,
@@ -289,16 +292,45 @@ app.post("/api/orders", async (req: Request, res: Response) => {
         buttery: buttery || null,
         status: "pending",
         orderItems: {
-          create: items?.map((item) => ({
-            menuItemId: item.menuItemId,
-            quantity: item.quantity,
-            price: item.price,
-          })) || [],
+          create: await Promise.all((items || []).map(async (item) => {
+            // If item has modifiers, look up their IDs
+            let modifierConnections: { modifier: { connect: { id: string } } }[] = [];
+
+            if (item.modifiers && item.modifiers.length > 0) {
+              // Fetch all modifiers for this menu item
+              const availableModifiers = await prisma.modifier.findMany({
+                where: {
+                  menuItemId: item.menuItemId,
+                  name: { in: item.modifiers },
+                },
+              });
+
+              // Create connections for each modifier
+              modifierConnections = availableModifiers.map(mod => ({
+                modifier: { connect: { id: mod.id } },
+              }));
+            }
+
+            return {
+              menuItemId: item.menuItemId,
+              quantity: item.quantity,
+              price: item.price,
+              modifiers: {
+                create: modifierConnections,
+              },
+            };
+          })),
         },
       },
       include: {
         orderItems: {
-          include: { modifiers: true },
+          include: {
+            modifiers: {
+              include: {
+                modifier: true,
+              },
+            },
+          },
         },
       },
     });
@@ -316,7 +348,17 @@ app.get("/api/orders", async (req: Request, res: Response) => {
 
     const orders = await prisma.order.findMany({
       where: buttery ? { buttery: buttery as string } : undefined,
-      include: { orderItems: { include: { modifiers: true } } },
+      include: {
+        orderItems: {
+          include: {
+            modifiers: {
+              include: {
+                modifier: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(orders);
@@ -337,7 +379,17 @@ app.get("/api/users/:netId/orders", async (req: Request, res: Response) => {
         netId,
         ...(buttery && { buttery: buttery as string }),
       },
-      include: { orderItems: { include: { modifiers: true } } },
+      include: {
+        orderItems: {
+          include: {
+            modifiers: {
+              include: {
+                modifier: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(orders);
@@ -360,7 +412,17 @@ app.patch("/api/orders/:orderId", async (req: Request, res: Response) => {
     const order = await prisma.order.update({
       where: { id: orderId },
       data: { status },
-      include: { orderItems: true },
+      include: {
+        orderItems: {
+          include: {
+            modifiers: {
+              include: {
+                modifier: true,
+              },
+            },
+          },
+        },
+      },
     });
     res.json(order);
   } catch {

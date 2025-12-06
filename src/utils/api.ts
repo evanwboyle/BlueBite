@@ -130,6 +130,7 @@ export const api = {
             menuItemId: item.menuItemId,
             quantity: item.quantity,
             price: item.price,
+            modifiers: item.modifiers || [],
           })),
         }),
       });
@@ -138,11 +139,21 @@ export const api = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      interface BackendCreatedOrderItemModifier {
+        id: string;
+        modifier: {
+          id: string;
+          name: string;
+          price: number;
+        };
+      }
+
       interface BackendCreatedOrderItem {
         id: string;
         menuItemId: string;
         quantity: number;
         price: number;
+        modifiers?: BackendCreatedOrderItemModifier[];
       }
 
       const order = await response.json();
@@ -156,7 +167,7 @@ export const api = {
           name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: [],
+          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
         })),
         totalPrice: order.totalPrice,
         status: order.status as Order['status'],
@@ -190,6 +201,15 @@ export const api = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      interface BackendOrderItemModifier {
+        id: string;
+        modifier: {
+          id: string;
+          name: string;
+          price: number;
+        };
+      }
+
       interface BackendOrderItem {
         id: string;
         orderId: string;
@@ -198,7 +218,7 @@ export const api = {
         price: number;
         createdAt: string;
         updatedAt: string;
-        modifiers: unknown[];
+        modifiers?: BackendOrderItemModifier[];
       }
 
       interface BackendOrder {
@@ -224,7 +244,7 @@ export const api = {
           name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: [], // TODO: Transform modifiers when backend implements them
+          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
         })),
         totalPrice: o.totalPrice,
         status: o.status as Order['status'],
@@ -258,6 +278,15 @@ export const api = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      interface BackendOrderItemModifier {
+        id: string;
+        modifier: {
+          id: string;
+          name: string;
+          price: number;
+        };
+      }
+
       interface BackendOrderItem {
         id: string;
         orderId: string;
@@ -266,7 +295,7 @@ export const api = {
         price: number;
         createdAt: string;
         updatedAt: string;
-        modifiers: unknown[];
+        modifiers?: BackendOrderItemModifier[];
       }
 
       interface BackendOrder {
@@ -292,7 +321,7 @@ export const api = {
           name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: [], // TODO: Transform modifiers when backend implements them
+          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
         })),
         totalPrice: o.totalPrice,
         status: o.status as Order['status'],
@@ -347,11 +376,21 @@ export const api = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      interface BackendUpdatedOrderItemModifier {
+        id: string;
+        modifier: {
+          id: string;
+          name: string;
+          price: number;
+        };
+      }
+
       interface BackendUpdatedOrderItem {
         id: string;
         menuItemId: string;
         quantity: number;
         price: number;
+        modifiers?: BackendUpdatedOrderItemModifier[];
       }
 
       const order = await response.json();
@@ -365,7 +404,7 @@ export const api = {
           name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: [],
+          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
         })),
         totalPrice: order.totalPrice,
         status: order.status as Order['status'],
