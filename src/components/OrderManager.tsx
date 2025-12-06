@@ -10,10 +10,11 @@ interface OrderManagerProps {
 }
 
 export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
-  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
   const [userCache, setUserCache] = useState<Map<string, YaliesUser | null>>(new Map());
+  const [checkedItems, setCheckedItems] = useState<Map<string, Set<number>>>(new Map());
 
   // Filter to past 12 hours and sort oldest to newest
   const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -84,12 +85,14 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
     return netId;
   };
 
-  const statusColors: Record<Order['status'], string> = {
-    pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    preparing: 'bg-blue-100 text-blue-800 border-blue-300',
-    ready: 'bg-green-100 text-green-800 border-green-300',
-    completed: 'bg-gray-100 text-gray-800 border-gray-300',
-    cancelled: 'bg-red-100 text-red-800 border-red-300',
+  // Track mouse position for specular highlight effect
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    card.style.setProperty('--mouse-x', `${x}%`);
+    card.style.setProperty('--mouse-y', `${y}%`);
   };
 
   const handleStatusChange = (order: Order, newStatus: Order['status']) => {
@@ -117,16 +120,16 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 h-full flex flex-col">
+    <div className="glass-container rounded-xl h-full flex flex-col">
       {/* Header */}
-      <div className="bg-gray-50 border-b p-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">
-          Orders ({sortedOrders.length}/{ordersWithinPast12h.length})
+      <div className="glass-header p-5 flex items-center justify-between rounded-t-xl">
+        <h2 className="text-xl font-extrabold text-white tracking-wide">
+          Orders <span className="text-gray-400 font-semibold">({sortedOrders.length}/{ordersWithinPast12h.length})</span>
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setHideCompleted(!hideCompleted)}
-            className={`btn-small ${hideCompleted ? 'bg-blue-600 text-white hover:bg-blue-700' : 'btn-secondary'} flex items-center gap-1`}
+            className={`glass-button ${hideCompleted ? 'glass-button-active' : ''} px-4 py-2 rounded-lg text-sm flex items-center gap-2`}
             title="Toggle completed orders visibility"
           >
             {hideCompleted ? 'Show Completed' : 'Hide Completed'}
@@ -134,10 +137,10 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
           {undoStack.length > 0 && (
             <button
               onClick={handleUndo}
-              className="btn-small btn-secondary flex items-center gap-1"
+              className="glass-button px-4 py-2 rounded-lg text-sm flex items-center gap-2"
               title="Undo last action"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={16} />
               Undo
             </button>
           )}
@@ -145,61 +148,73 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
       </div>
 
       {/* Orders List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-3">
         {sortedOrders.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <p className="text-sm">No orders yet</p>
+              <p className="text-base text-gray-400 font-medium">No orders yet</p>
             </div>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="space-y-3">
             {sortedOrders.map(order => (
-              <div key={order.id} className="border-b">
+              <div
+                key={order.id}
+                className="glass-order-card rounded-xl overflow-hidden"
+                onMouseMove={handleMouseMove}
+              >
                 {/* Order Header */}
                 <button
-                  onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                  className="w-full p-3 hover:bg-gray-50 transition text-left flex items-center justify-between"
+                  onClick={() => {
+                    const newExpanded = new Set(expandedOrders);
+                    if (newExpanded.has(order.id)) {
+                      newExpanded.delete(order.id);
+                    } else {
+                      newExpanded.add(order.id);
+                    }
+                    setExpandedOrders(newExpanded);
+                  }}
+                  className="w-full p-4 transition-all text-left flex items-center justify-between"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-gray-900 text-sm">Order #{orderNumberMap.get(order.id)}</p>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColors[order.status]}`}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <p className="order-number">Order #{orderNumberMap.get(order.id)}</p>
+                      <span className={`status-badge status-${order.status}`}>
                         {order.status}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
-                      <span>Customer: <span className="font-medium">{getCustomerDisplayName(order.netId)}</span></span>
-                      <span>${order.totalPrice.toFixed(2)}</span>
+                    <div className="flex items-center gap-4 text-sm text-gray-300">
+                      <span>Customer: <span className="customer-name">{getCustomerDisplayName(order.netId)}</span></span>
+                      <span className="text-white font-bold">${order.totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
-                  {expandedOrder === order.id ? (
-                    <ChevronUp size={20} className="text-gray-500" />
+                  {expandedOrders.has(order.id) ? (
+                    <ChevronUp size={22} className="text-gray-400" />
                   ) : (
-                    <ChevronDown size={20} className="text-gray-500" />
+                    <ChevronDown size={22} className="text-gray-400" />
                   )}
                 </button>
 
                 {/* Order Details */}
-                {expandedOrder === order.id && (
-                  <div className="bg-gray-50 p-3 border-t space-y-3">
+                {expandedOrders.has(order.id) && (
+                  <div className="glass-expanded-details p-4 space-y-4">
                     {/* Customer Profile Image */}
-                    <div className="flex items-center gap-3">
+                    <div className="glass-profile-card flex items-center gap-4 p-3 rounded-lg">
                       <img
                         src={userCache.get(order.netId)?.image || '/src/assets/no_image.png'}
                         alt={getCustomerDisplayName(order.netId)}
-                        className="w-16 h-16 rounded-full object-cover bg-gray-200"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-white/10 shadow-lg"
                       />
                       <div>
-                        <p className="text-xs font-bold text-gray-900">{getCustomerDisplayName(order.netId)}</p>
-                        <p className="text-xs text-gray-600">{order.netId}</p>
+                        <p className="text-sm font-bold text-white tracking-wide">{getCustomerDisplayName(order.netId)}</p>
+                        <p className="text-xs text-gray-400 mt-1">{order.netId}</p>
                       </div>
                     </div>
 
                     {/* Items */}
                     <div>
-                      <h4 className="text-xs font-bold text-gray-900 mb-2 uppercase">Items</h4>
-                      <div className="space-y-1">
+                      <h4 className="text-xs font-extrabold text-gray-300 mb-3 uppercase tracking-widest">Items</h4>
+                      <div className="space-y-2">
                         {order.items.map((item, idx) => {
                           // Defensive check: ensure item name exists, provide fallback
                           const itemName = item.name || `Item ${item.menuItemId?.substring(0, 8) || 'Unknown'}`;
@@ -214,14 +229,41 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                             });
                           }
 
+                          const orderCheckedItems = checkedItems.get(order.id) || new Set();
+                          const isChecked = orderCheckedItems.has(idx);
+
+                          const handleCheckChange = () => {
+                            const newCheckedItems = new Map(checkedItems);
+                            const orderItems = new Set(newCheckedItems.get(order.id) || []);
+
+                            if (isChecked) {
+                              orderItems.delete(idx);
+                            } else {
+                              orderItems.add(idx);
+                            }
+
+                            newCheckedItems.set(order.id, orderItems);
+                            setCheckedItems(newCheckedItems);
+                          };
+
                           return (
-                            <div key={idx} className="text-xs text-gray-700">
-                              <div className="flex justify-between">
-                                <span>{itemName} x{item.quantity}</span>
-                                <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+                            <div key={idx} className="text-sm text-gray-200 bg-white/5 rounded-lg p-2">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={handleCheckChange}
+                                    className="w-4 h-4 cursor-pointer"
+                                  />
+                                  <span className={`font-semibold ${isChecked ? 'line-through text-gray-400' : ''}`}>
+                                    {itemName} <span className="text-gray-400">x{item.quantity}</span>
+                                  </span>
+                                </div>
+                                <span className="font-bold text-white">${(item.price * item.quantity).toFixed(2)}</span>
                               </div>
                               {item.modifiers && item.modifiers.length > 0 && (
-                                <div className="text-gray-600 ml-2 text-xs">
+                                <div className="text-gray-400 ml-7 text-xs mt-1">
                                   {item.modifiers.join(', ')}
                                 </div>
                               )}
@@ -233,26 +275,28 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
 
                     {/* Notes Section - Only show if there are special instructions */}
                     {order.specialInstructions && order.specialInstructions.trim() && (
-                      <div className="bg-white p-2 rounded border border-gray-200">
-                        <p className="text-xs font-medium text-gray-700">Special Instructions:</p>
-                        <p className="text-xs text-gray-600 mt-1">{order.specialInstructions}</p>
+                      <div className="glass-notes p-3 rounded-lg">
+                        <p className="text-xs font-bold text-yellow-300 uppercase tracking-wide">Special Instructions:</p>
+                        <p className="text-sm text-yellow-100 mt-2 leading-relaxed">{order.specialInstructions}</p>
                       </div>
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-3 pt-2">
                       {getStatusButtons(order).map(nextStatus => (
                         <button
                           key={nextStatus}
                           onClick={() => handleStatusChange(order, nextStatus)}
-                          className={`btn-small flex-1 text-xs ${
+                          className={`flex-1 text-sm font-semibold py-2.5 px-4 rounded-lg transition-all ${
                             nextStatus === 'preparing'
-                              ? 'btn-primary'
+                              ? 'glass-button-primary'
                               : nextStatus === 'ready'
-                              ? 'bg-green-500 text-white hover:bg-green-600'
+                              ? 'bg-gradient-to-r from-green-500/30 to-green-600/30 border border-green-500/50 text-green-300 hover:from-green-500/40 hover:to-green-600/40 shadow-lg shadow-green-500/20'
                               : nextStatus === 'completed'
-                              ? 'bg-gray-400 text-white hover:bg-gray-500'
-                              : 'btn-secondary'
+                              ? 'bg-gradient-to-r from-gray-500/30 to-gray-600/30 border border-gray-500/50 text-gray-300 hover:from-gray-500/40 hover:to-gray-600/40'
+                              : nextStatus === 'cancelled'
+                              ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 border border-red-500/50 text-red-300 hover:from-red-500/40 hover:to-red-600/40 shadow-lg shadow-red-500/20'
+                              : 'glass-button'
                           }`}
                         >
                           {nextStatus === 'preparing' && <span>Start</span>}

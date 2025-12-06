@@ -431,7 +431,7 @@ function App() {
     : orders;
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
+    <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
       <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
 
       {/* Notification Overlay */}
@@ -448,7 +448,7 @@ function App() {
       <div className="flex-1 flex overflow-hidden gap-1 p-1">
         {/* Left Panel - Ordering */}
         <div style={{ flex: `0 0 ${leftPanelWidth}%` }} className="flex flex-col min-w-0">
-          <div className="bg-white shadow flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden rounded-lg shadow-xl" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(25, 30, 40, 0.75) 100%)' }}>
             <MenuGrid
               items={menuItems}
               onAddToCart={handleAddToCart}
@@ -487,7 +487,7 @@ function App() {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
           }}
-          className="w-3 bg-gray-300 hover:bg-blue-500 cursor-col-resize transition-colors duration-200 flex-shrink-0"
+          className="w-3 bg-gradient-to-b from-blue-500/40 via-blue-400/30 to-blue-500/40 hover:from-blue-400/60 hover:via-blue-300/50 hover:to-blue-400/60 cursor-col-resize transition-all duration-200 flex-shrink-0 shadow-lg"
         />
 
         {/* Right Side - Order Manager */}

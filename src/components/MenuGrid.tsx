@@ -55,15 +55,15 @@ export function MenuGrid({
   const categories = [...new Set(items.map(i => i.category))];
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col glass-container">
       {/* Menu Header with Cart Button / Add Item Button */}
-      <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-8 flex items-center justify-between rounded-t-none h-[40px]">
-        <h2 className="text-lg font-bold">Menu</h2>
+      <div className="flex-shrink-0 glass-header px-4 py-8 flex items-center justify-between rounded-t-none h-[40px]">
+        <h2 className="text-lg font-bold text-white">Menu</h2>
         <div className="flex items-center gap-3 pr-6">
           {showEditControls && onCreateMenuItem && (
             <button
               onClick={handleCreateClick}
-              className="hover:bg-blue-700 px-3 py-2 rounded transition flex items-center gap-2"
+              className="glass-button px-3 py-2 rounded transition flex items-center gap-2"
               aria-label="Add new item"
             >
               <Plus size={20} />
@@ -73,7 +73,7 @@ export function MenuGrid({
           {onCartClick && !showEditControls && (
             <button
               onClick={onCartClick}
-              className="relative hover:bg-blue-700 px-16 py-2 rounded transition inline-block"
+              className="relative glass-button px-16 py-2 rounded transition inline-block"
               aria-label="Shopping cart"
             >
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -91,10 +91,10 @@ export function MenuGrid({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8" style={{ background: 'rgba(0, 0, 0, 0.2)' }}>
         {categories.map(category => (
           <div key={category}>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">{category}</h3>
+            <h3 className="text-xl font-bold text-gray-200 mb-4">{category}</h3>
             <div className="grid grid-cols-3 gap-4">
               {items
                 .filter(item => item.category === category && !item.disabled)
@@ -103,12 +103,12 @@ export function MenuGrid({
                     key={item.id}
                     className="relative group"
                   >
-                    <div className={`bg-white rounded-lg shadow hover:shadow-lg transition border border-gray-200 overflow-hidden h-full flex flex-col ${showEditControls ? 'opacity-90' : ''}`}>
-                      <div className="h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-t-lg overflow-hidden relative">
+                    <div className={`glass-order-card rounded-lg shadow hover:shadow-lg transition overflow-hidden h-full flex flex-col ${showEditControls ? 'opacity-90' : ''}`}>
+                      <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-t-lg overflow-hidden relative">
                         {item.image ? (
                           <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <div className="w-full h-full flex items-center justify-center text-gray-500">
                             <span className="text-sm">No image</span>
                           </div>
                         )}
@@ -118,7 +118,7 @@ export function MenuGrid({
                           <div className="absolute top-2 right-2 flex gap-1">
                             <button
                               onClick={(e) => handleEditClick(e, item)}
-                              className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md transition transform hover:scale-110"
+                              className="w-8 h-8 glass-button-primary text-blue-300 rounded-full flex items-center justify-center shadow-md transition transform hover:scale-110"
                               aria-label={`Edit ${item.name}`}
                               title="Edit item"
                             >
@@ -128,10 +128,10 @@ export function MenuGrid({
                         )}
                       </div>
                       <div className="p-4 flex-1 flex flex-col">
-                        <h4 className="font-semibold text-sm text-gray-900 line-clamp-2">{item.name}</h4>
-                        <p className="text-blue-600 font-bold text-lg mt-2">${item.price.toFixed(2)}</p>
+                        <h4 className="font-semibold text-sm text-white line-clamp-2">{item.name}</h4>
+                        <p className="text-blue-400 font-bold text-lg mt-2">${item.price.toFixed(2)}</p>
                         {item.hot && (
-                          <span className="inline-block text-xs bg-red-100 text-red-700 rounded px-2 py-1 mt-2 w-fit">
+                          <span className="inline-block text-xs bg-red-500/20 text-red-400 border border-red-500/40 rounded px-2 py-1 mt-2 w-fit">
                             Hot
                           </span>
                         )}
@@ -142,7 +142,7 @@ export function MenuGrid({
                       {!showEditControls && (
                         <button
                           onClick={() => handleAddItem(item)}
-                          className="absolute bottom-3 right-3 w-10 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg transition transform hover:scale-110"
+                          className="absolute bottom-3 right-3 w-10 h-10 glass-button-primary text-blue-300 rounded-full flex items-center justify-center shadow-lg transition transform hover:scale-110"
                           aria-label={`Add ${item.name}`}
                         >
                           <Plus size={20} />

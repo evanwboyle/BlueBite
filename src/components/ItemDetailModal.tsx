@@ -155,21 +155,21 @@ export function ItemDetailModal({
     return (
       <div
         className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-        style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }}
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
         onClick={onClose}
       >
         <div
-          className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
+          className="glass-container rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="sticky top-0 flex items-center justify-between p-6 border-b bg-white">
-            <h2 className="text-2xl font-bold text-gray-900">
+          <div className="glass-header sticky top-0 flex items-center justify-between p-6">
+            <h2 className="text-2xl font-bold text-white">
               Edit: {item?.name || 'New Item'}
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-gray-400 hover:text-white transition"
               aria-label="Close"
             >
               <X size={24} />
@@ -180,17 +180,17 @@ export function ItemDetailModal({
           <div className="p-6 space-y-6">
             <div className="space-y-4">
               {/* Available Toggle */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
                 <div>
-                  <h3 className="font-semibold text-gray-900">Available</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-semibold text-white">Available</h3>
+                  <p className="text-sm text-gray-400">
                     Item is {editAvailable ? 'visible' : 'hidden'} to customers
                   </p>
                 </div>
                 <button
                   onClick={handleToggleAvailable}
                   className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${
-                    editAvailable ? 'bg-blue-600' : 'bg-gray-300'
+                    editAvailable ? 'bg-blue-600' : 'bg-gray-600'
                   }`}
                 >
                   <span
@@ -202,15 +202,15 @@ export function ItemDetailModal({
               </div>
 
               {/* Hot Toggle */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
                 <div>
-                  <h3 className="font-semibold text-gray-900">Hot Item</h3>
-                  <p className="text-sm text-gray-600">Mark as hot food item</p>
+                  <h3 className="font-semibold text-white">Hot Item</h3>
+                  <p className="text-sm text-gray-400">Mark as hot food item</p>
                 </div>
                 <button
                   onClick={handleToggleHot}
                   className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${
-                    editHot ? 'bg-red-600' : 'bg-gray-300'
+                    editHot ? 'bg-red-600' : 'bg-gray-600'
                   }`}
                 >
                   <span
@@ -224,8 +224,8 @@ export function ItemDetailModal({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 border-t p-6 bg-gray-50 flex justify-end">
-            <button onClick={onClose} className="btn-secondary px-6 py-2">
+          <div className="glass-header sticky bottom-0 p-6 flex justify-end">
+            <button onClick={onClose} className="glass-button px-6 py-2 rounded-lg">
               Close
             </button>
           </div>
@@ -239,21 +239,21 @@ export function ItemDetailModal({
     return (
       <div
         className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-        style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }}
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
         onClick={onClose}
       >
         <div
-          className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
+          className="glass-container rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="sticky top-0 flex items-center justify-between p-6 border-b bg-white">
-            <h2 className="text-2xl font-bold text-gray-900">
+          <div className="glass-header sticky top-0 flex items-center justify-between p-6">
+            <h2 className="text-2xl font-bold text-white">
               {item ? `Edit: ${item.name}` : 'Create New Item'}
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-gray-400 hover:text-white transition"
               aria-label="Close"
             >
               <X size={24} />
@@ -264,32 +264,32 @@ export function ItemDetailModal({
           <div className="p-6 space-y-6">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Name *
               </label>
               <input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., Chocolate Chip Cookie"
               />
             </div>
 
             {/* Price */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Price *
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-2 text-gray-500">$</span>
+                <span className="absolute left-4 top-2 text-gray-400">$</span>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
                   value={editPrice}
                   onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0.00"
                 />
               </div>
@@ -297,27 +297,27 @@ export function ItemDetailModal({
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Category *
               </label>
               <input
                 type="text"
                 value={editCategory}
                 onChange={(e) => setEditCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., Snacks, Beverages, Hot Food"
               />
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Description
               </label>
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Optional description"
                 rows={3}
               />
@@ -326,15 +326,15 @@ export function ItemDetailModal({
             {/* Toggles */}
             <div className="grid grid-cols-2 gap-4">
               {/* Available Toggle */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
                 <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">Available</h3>
-                  <p className="text-xs text-gray-600">Visible to customers</p>
+                  <h3 className="font-semibold text-white text-sm">Available</h3>
+                  <p className="text-xs text-gray-400">Visible to customers</p>
                 </div>
                 <button
                   onClick={() => setEditAvailable(!editAvailable)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                    editAvailable ? 'bg-blue-600' : 'bg-gray-300'
+                    editAvailable ? 'bg-blue-600' : 'bg-gray-600'
                   }`}
                 >
                   <span
@@ -346,15 +346,15 @@ export function ItemDetailModal({
               </div>
 
               {/* Hot Toggle */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
                 <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">Hot Item</h3>
-                  <p className="text-xs text-gray-600">Mark as hot food</p>
+                  <h3 className="font-semibold text-white text-sm">Hot Item</h3>
+                  <p className="text-xs text-gray-400">Mark as hot food</p>
                 </div>
                 <button
                   onClick={() => setEditHot(!editHot)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                    editHot ? 'bg-red-600' : 'bg-gray-300'
+                    editHot ? 'bg-red-600' : 'bg-gray-600'
                   }`}
                 >
                   <span
@@ -368,12 +368,12 @@ export function ItemDetailModal({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 border-t p-6 bg-gray-50 flex items-center justify-between">
+          <div className="glass-header sticky bottom-0 p-6 flex items-center justify-between">
             <div>
               {item && onDeleteMenuItem && (
                 <button
                   onClick={handleDelete}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                  className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition"
                 >
                   <Trash2 size={18} />
                   Delete Item
@@ -381,10 +381,10 @@ export function ItemDetailModal({
               )}
             </div>
             <div className="flex gap-3">
-              <button onClick={onClose} className="btn-secondary px-6 py-2">
+              <button onClick={onClose} className="glass-button px-6 py-2 rounded-lg">
                 Cancel
               </button>
-              <button onClick={handleSaveChanges} className="btn-primary px-6 py-2">
+              <button onClick={handleSaveChanges} className="glass-button-primary px-6 py-2 rounded-lg">
                 {item ? 'Save Changes' : 'Create Item'}
               </button>
             </div>
@@ -402,19 +402,19 @@ export function ItemDetailModal({
   return (
     <div
       className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl"
+        className="glass-container rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Close */}
-        <div className="sticky top-0 flex items-center justify-between p-6 border-b bg-white">
-          <h2 className="text-2xl font-bold text-gray-900">{item.name}</h2>
+        <div className="glass-header sticky top-0 flex items-center justify-between p-6">
+          <h2 className="text-2xl font-bold text-white">{item.name}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
+            className="text-gray-400 hover:text-white transition"
             aria-label="Close"
           >
             <X size={24} />
@@ -424,11 +424,11 @@ export function ItemDetailModal({
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Image */}
-          <div className="h-48 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg overflow-hidden">
+          <div className="h-48 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg overflow-hidden border border-white/10">
             {item.image ? (
               <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
+              <div className="w-full h-full flex items-center justify-center text-gray-500">
                 <span>No image available</span>
               </div>
             )}
@@ -436,25 +436,25 @@ export function ItemDetailModal({
 
           {/* Item Info */}
           <div>
-            <p className="text-gray-600 mb-2">
+            <p className="text-gray-400 mb-2">
               {item.hot && (
-                <span className="inline-block text-xs bg-red-100 text-red-700 rounded px-2 py-1 mr-2">
+                <span className="inline-block text-xs bg-red-500/20 text-red-400 rounded px-2 py-1 mr-2 border border-red-500/30">
                   Hot
                 </span>
               )}
             </p>
-            <p className="text-3xl font-bold text-blue-600">${item.price.toFixed(2)}</p>
+            <p className="text-3xl font-bold text-blue-400">${item.price.toFixed(2)}</p>
           </div>
 
           {/* Modifiers */}
           {item.modifiers.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Add-ons</h3>
+              <h3 className="text-lg font-semibold text-white mb-3">Add-ons</h3>
               <div className="space-y-2">
                 {item.modifiers.map(modifier => (
                   <label
                     key={modifier.id}
-                    className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition"
+                    className="flex items-center gap-3 p-3 glass-order-card rounded-lg hover:bg-white/10 cursor-pointer transition"
                   >
                     <input
                       type="checkbox"
@@ -463,9 +463,9 @@ export function ItemDetailModal({
                       className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
                     />
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{modifier.name}</p>
+                      <p className="font-medium text-white">{modifier.name}</p>
                     </div>
-                    <p className="text-blue-600 font-semibold">+${modifier.price.toFixed(2)}</p>
+                    <p className="text-blue-400 font-semibold">+${modifier.price.toFixed(2)}</p>
                   </label>
                 ))}
               </div>
@@ -473,19 +473,19 @@ export function ItemDetailModal({
           )}
 
           {/* Quantity Selector */}
-          <div className="border-t pt-4">
-            <p className="text-sm font-medium text-gray-700 mb-3">Quantity</p>
+          <div className="border-t border-white/10 pt-4">
+            <p className="text-sm font-medium text-gray-300 mb-3">Quantity</p>
             <div className="flex items-center gap-4 w-fit">
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-10 h-10 rounded-full border border-gray-300 hover:border-gray-400 flex items-center justify-center transition"
+                className="w-10 h-10 rounded-full glass-button flex items-center justify-center"
               >
                 <Minus size={18} />
               </button>
-              <span className="text-xl font-semibold w-8 text-center">{quantity}</span>
+              <span className="text-xl font-semibold w-8 text-center text-white">{quantity}</span>
               <button
                 onClick={() => setQuantity(quantity + 1)}
-                className="w-10 h-10 rounded-full border border-gray-300 hover:border-gray-400 flex items-center justify-center transition"
+                className="w-10 h-10 rounded-full glass-button flex items-center justify-center"
               >
                 <Plus size={18} />
               </button>
@@ -494,12 +494,12 @@ export function ItemDetailModal({
         </div>
 
         {/* Footer with Total and Add Button */}
-        <div className="sticky bottom-0 border-t p-6 bg-gray-50 flex items-center justify-between gap-4">
+        <div className="glass-header sticky bottom-0 p-6 flex items-center justify-between gap-4">
           <div className="text-right">
-            <p className="text-sm text-gray-600 mb-1">Total Price</p>
-            <p className="text-2xl font-bold text-blue-600">${totalPrice.toFixed(2)}</p>
+            <p className="text-sm text-gray-400 mb-1">Total Price</p>
+            <p className="text-2xl font-bold text-blue-400">${totalPrice.toFixed(2)}</p>
           </div>
-          <button onClick={handleAddToCart} className="btn-primary flex-1 py-3 text-lg">
+          <button onClick={handleAddToCart} className="glass-button-primary flex-1 py-3 text-lg rounded-lg">
             Add to Cart
           </button>
         </div>
