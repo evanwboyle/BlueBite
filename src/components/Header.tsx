@@ -1,4 +1,5 @@
-import { Menu } from 'lucide-react';
+import { Menu, Maximize2, Minimize2 } from 'lucide-react';
+import { useState } from 'react';
 import bluebiteLogo from '../assets/android-chrome-192x192.png';
 
 interface HeaderProps {
@@ -6,6 +7,22 @@ interface HeaderProps {
 }
 
 export function Header({ onSettingsClick }: HeaderProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const handleFullscreenToggle = async () => {
+    try {
+      if (!isFullscreen) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+    }
+  };
+
   return (
     <header className="bg-blue-900 text-white shadow-lg">
       <div className="flex items-center justify-between px-6 py-6">
@@ -14,7 +31,14 @@ export function Header({ onSettingsClick }: HeaderProps) {
           <h1 className="text-2xl font-bold">BlueBite</h1>
         </div>
 
-        <nav className="hidden md:flex gap-6 text-sm font-medium">
+        <nav className="hidden md:flex gap-3 text-sm font-medium">
+          <button
+            onClick={handleFullscreenToggle}
+            className="hover:bg-blue-700 px-3 py-2 rounded transition"
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+          </button>
           <button onClick={onSettingsClick} className="hover:bg-blue-700 px-3 py-2 rounded transition pr-4">Settings</button>
         </nav>
         <button className="md:hidden">

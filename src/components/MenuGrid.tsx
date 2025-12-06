@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, ExternalLink } from 'lucide-react';
 import { ItemDetailModal } from './ItemDetailModal';
 
 interface MenuGridProps {
@@ -60,6 +60,18 @@ export function MenuGrid({
       <div className="flex-shrink-0 glass-header px-4 py-8 flex items-center justify-between rounded-t-none h-[40px]">
         <h2 className="text-lg font-bold text-white">Menu</h2>
         <div className="flex items-center gap-3 pr-6">
+          <button
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', 'menu');
+              window.open(url.toString(), '_blank');
+            }}
+            className="glass-button px-3 py-2 rounded transition flex items-center gap-2"
+            aria-label="Open in new window"
+            title="Open in new window"
+          >
+            <ExternalLink size={18} />
+          </button>
           {showEditControls && onCreateMenuItem && (
             <button
               onClick={handleCreateClick}

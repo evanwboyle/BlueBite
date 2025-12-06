@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Order } from '../types';
-import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen } from 'lucide-react';
+import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen, ExternalLink } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 
 interface OrderManagerProps {
   orders: Order[];
   onUpdateOrder: (id: string, status: Order['status']) => void;
+  isPopout?: boolean;
 }
 
-export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
+export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderManagerProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -156,13 +157,25 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   };
 
   return (
-    <div className="glass-container rounded-xl h-full flex flex-col relative">
+    <div className={`${isPopout ? '' : 'glass-container rounded-xl'} h-full w-full flex flex-col relative`}>
       {/* Header */}
       <div className="glass-header p-5 flex items-center justify-between rounded-t-xl">
         <h2 className="text-xl font-extrabold text-white tracking-wide">
           Orders <span className="text-gray-400 font-semibold">({sortedOrders.length}/{ordersWithinPast12h.length})</span>
         </h2>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', 'orders');
+              window.open(url.toString(), '_blank');
+            }}
+            className="glass-button px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+            aria-label="Open in new window"
+            title="Open in new window"
+          >
+            <ExternalLink size={16} />
+          </button>
           <button
             onClick={() => {
               if (locked) {

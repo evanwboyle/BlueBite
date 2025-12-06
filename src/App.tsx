@@ -14,6 +14,11 @@ import { optimisticUpdate } from './utils/optimistic';
 import { Bell } from 'lucide-react';
 
 function App() {
+  // Detect if this is a popout view (menu-only or orders-only)
+  const searchParams = new URLSearchParams(window.location.search);
+  const popoutView = searchParams.get('view'); // 'menu' or 'orders'
+  const isPopout = popoutView === 'menu' || popoutView === 'orders';
+
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
@@ -145,6 +150,28 @@ function App() {
 
     loadOrders();
   }, [menuItems, selectedButtery]);
+
+  // Poll for orders frequently when in popout mode
+  useEffect(() => {
+    if (!isPopout) return; // Only poll in popout mode
+
+    // Skip if menu items haven't loaded yet
+    if (menuItems.length === 0) return;
+
+    // Poll every 3 seconds for popout orders view
+    const pollInterval = setInterval(async () => {
+      try {
+        const allOrders = await api.fetchAllOrders(selectedButtery || undefined);
+        const enrichedOrders = enrichOrdersWithMenuNames(allOrders, menuItems);
+        setOrders(enrichedOrders);
+        storage.setCachedOrders(allOrders, selectedButtery);
+      } catch (err) {
+        console.error('[App.pollOrders] Failed to fetch orders:', err);
+      }
+    }, 3000); // 3 second interval
+
+    return () => clearInterval(pollInterval);
+  }, [isPopout, menuItems, selectedButtery]);
 
   const handleAddToCart = (item: OrderItem) => {
     const newCart = [...cartItems, item];
@@ -430,6 +457,100 @@ function App() {
     ? orders.filter(o => o.buttery === selectedButtery)
     : orders;
 
+  // Popout view for menu only
+  if (popoutView === 'menu') {
+    return (
+      <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
+        <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+
+        {/* Notification Overlay */}
+        {notification && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
+            <div className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto">
+              <Bell size={18} />
+              {notification}
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 flex overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(25, 30, 40, 0.75) 100%)' }}>
+          <MenuGrid
+            items={menuItems}
+            onAddToCart={handleAddToCart}
+            cartCount={cartItems.length}
+            onCartClick={() => setIsCartOpen(true)}
+            isEditMode={isEditMode}
+            currentUser={currentUser}
+            onUpdateMenuItem={handleUpdateMenuItem}
+            onCreateMenuItem={handleCreateMenuItem}
+            onDeleteMenuItem={handleDeleteMenuItem}
+          />
+        </div>
+
+        {isCartOpen && (
+          <CartModal
+            items={cartItems}
+            onClose={() => setIsCartOpen(false)}
+            onRemoveItem={handleRemoveFromCart}
+            onCheckout={handleCheckout}
+          />
+        )}
+
+        {isSettingsOpen && (
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            currentUser={currentUser}
+            onUserLogout={() => setCurrentUser(null)}
+            isEditMode={isEditMode}
+            onToggleEditMode={(enabled) => setIsEditMode(enabled)}
+            selectedButtery={selectedButtery}
+            butteryOptions={butteryOptions}
+            onButteryChange={handleButteryChange}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Popout view for orders only
+  if (popoutView === 'orders') {
+    return (
+      <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
+        <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+
+        {/* Notification Overlay */}
+        {notification && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
+            <div className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto">
+              <Bell size={18} />
+              {notification}
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 flex overflow-hidden">
+          <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} isPopout={true} />
+        </div>
+
+        {isSettingsOpen && (
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            currentUser={currentUser}
+            onUserLogout={() => setCurrentUser(null)}
+            isEditMode={isEditMode}
+            onToggleEditMode={(enabled) => setIsEditMode(enabled)}
+            selectedButtery={selectedButtery}
+            butteryOptions={butteryOptions}
+            onButteryChange={handleButteryChange}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Normal dual-panel view
   return (
     <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
       <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
