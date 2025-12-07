@@ -11,6 +11,7 @@ import { API_BASE_URL } from './utils/config';
 import { calculateCartTotal } from './utils/cart';
 import { enrichOrdersWithMenuNames } from './utils/order';
 import { optimisticUpdate } from './utils/optimistic';
+import { useColorPalette } from './hooks/useColorPalette';
 import { Bell } from 'lucide-react';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
   const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>([ ]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const { primaryColor } = useColorPalette(selectedButtery);
 
   // Initialize on mount
   useEffect(() => {
@@ -461,7 +463,7 @@ function App() {
   if (popoutView === 'menu') {
     return (
       <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-        <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+        <Header selectedButtery={selectedButtery} onSettingsClick={() => setIsSettingsOpen(true)} />
 
         {/* Notification Overlay */}
         {notification && (
@@ -476,6 +478,7 @@ function App() {
         <div className="flex-1 flex overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(25, 30, 40, 0.75) 100%)' }}>
           <MenuGrid
             items={menuItems}
+            selectedButtery={selectedButtery}
             onAddToCart={handleAddToCart}
             cartCount={cartItems.length}
             onCartClick={() => setIsCartOpen(true)}
@@ -517,7 +520,7 @@ function App() {
   if (popoutView === 'orders') {
     return (
       <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-        <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+        <Header selectedButtery={selectedButtery} onSettingsClick={() => setIsSettingsOpen(true)} />
 
         {/* Notification Overlay */}
         {notification && (
@@ -553,7 +556,7 @@ function App() {
   // Normal dual-panel view
   return (
     <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-      <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+      <Header selectedButtery={selectedButtery} onSettingsClick={() => setIsSettingsOpen(true)} />
 
       {/* Notification Overlay */}
       {notification && (
@@ -572,6 +575,7 @@ function App() {
           <div className="flex-1 flex flex-col overflow-hidden rounded-lg shadow-xl" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(25, 30, 40, 0.75) 100%)' }}>
             <MenuGrid
               items={menuItems}
+              selectedButtery={selectedButtery}
               onAddToCart={handleAddToCart}
               cartCount={cartItems.length}
               onCartClick={() => setIsCartOpen(true)}
@@ -608,7 +612,16 @@ function App() {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
           }}
-          className="w-3 bg-gradient-to-b from-blue-500/40 via-blue-400/30 to-blue-500/40 hover:from-blue-400/60 hover:via-blue-300/50 hover:to-blue-400/60 cursor-col-resize transition-all duration-200 flex-shrink-0 shadow-lg"
+          className="w-3 cursor-col-resize transition-all duration-200 flex-shrink-0 shadow-lg"
+          style={{
+            background: `linear-gradient(to bottom, ${primaryColor}66, ${primaryColor}4D, ${primaryColor}66)`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = `linear-gradient(to bottom, ${primaryColor}99, ${primaryColor}80, ${primaryColor}99)`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = `linear-gradient(to bottom, ${primaryColor}66, ${primaryColor}4D, ${primaryColor}66)`;
+          }}
         />
 
         {/* Right Side - Order Manager */}

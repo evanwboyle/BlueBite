@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
 import { X, Plus, Minus, Trash2 } from 'lucide-react';
+import { useColorPalette } from '../hooks/useColorPalette';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
   isEditMode?: boolean;
   currentUser?: User | null;
+  selectedButtery: string | null;
   onAddToCart: (item: OrderItem) => void;
   onUpdateMenuItem?: (id: string, updates: Partial<MenuItem>) => void;
   onDeleteMenuItem?: (id: string) => void;
@@ -17,12 +19,14 @@ export function ItemDetailModal({
   item,
   isEditMode = false,
   currentUser = null,
+  selectedButtery,
   onAddToCart,
   onUpdateMenuItem,
   onDeleteMenuItem,
   onCreateMenuItem,
   onClose
 }: ItemDetailModalProps) {
+  const { primaryColor, lightColors } = useColorPalette(selectedButtery);
   // View mode state (for adding to cart)
   const [quantity, setQuantity] = useState(1);
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([]);
@@ -189,9 +193,8 @@ export function ItemDetailModal({
                 </div>
                 <button
                   onClick={handleToggleAvailable}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${
-                    editAvailable ? 'bg-blue-600' : 'bg-gray-600'
-                  }`}
+                  className="relative inline-flex h-8 w-14 items-center rounded-full transition"
+                  style={{ backgroundColor: editAvailable ? primaryColor : '#4B5563' }}
                 >
                   <span
                     className={`inline-block h-6 w-6 transform rounded-full bg-white transition ${
@@ -271,7 +274,8 @@ export function ItemDetailModal({
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent"
+                style={{ ['--tw-ring-color' as any]: primaryColor }}
                 placeholder="e.g., Chocolate Chip Cookie"
               />
             </div>
@@ -289,7 +293,8 @@ export function ItemDetailModal({
                   min="0"
                   value={editPrice}
                   onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent"
+                  style={{ ['--tw-ring-color' as any]: primaryColor }}
                   placeholder="0.00"
                 />
               </div>
@@ -304,7 +309,8 @@ export function ItemDetailModal({
                 type="text"
                 value={editCategory}
                 onChange={(e) => setEditCategory(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent"
+                style={{ ['--tw-ring-color' as any]: primaryColor }}
                 placeholder="e.g., Snacks, Beverages, Hot Food"
               />
             </div>
@@ -317,7 +323,8 @@ export function ItemDetailModal({
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent"
+                style={{ ['--tw-ring-color' as any]: primaryColor }}
                 placeholder="Optional description"
                 rows={3}
               />
@@ -333,9 +340,8 @@ export function ItemDetailModal({
                 </div>
                 <button
                   onClick={() => setEditAvailable(!editAvailable)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                    editAvailable ? 'bg-blue-600' : 'bg-gray-600'
-                  }`}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition"
+                  style={{ backgroundColor: editAvailable ? primaryColor : '#4B5563' }}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
@@ -384,7 +390,15 @@ export function ItemDetailModal({
               <button onClick={onClose} className="glass-button px-6 py-2 rounded-lg">
                 Cancel
               </button>
-              <button onClick={handleSaveChanges} className="glass-button-primary px-6 py-2 rounded-lg">
+              <button
+                onClick={handleSaveChanges}
+                className="px-6 py-2 rounded-lg glass-button-primary transition"
+                style={{
+                  backgroundColor: lightColors[0],
+                  color: '#000000',
+                  boxShadow: `0 0 12px ${lightColors[0]}80`,
+                }}
+              >
                 {item ? 'Save Changes' : 'Create Item'}
               </button>
             </div>
@@ -443,7 +457,7 @@ export function ItemDetailModal({
                 </span>
               )}
             </p>
-            <p className="text-3xl font-bold text-blue-400">${item.price.toFixed(2)}</p>
+            <p className="text-3xl font-bold" style={{ color: lightColors[lightColors.length > 1 ? 1 : 0] }}>${item.price.toFixed(2)}</p>
           </div>
 
           {/* Modifiers */}
@@ -460,12 +474,13 @@ export function ItemDetailModal({
                       type="checkbox"
                       checked={selectedModifiers.includes(modifier.name)}
                       onChange={() => handleToggleModifier(modifier.name)}
-                      className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                      className="w-5 h-5 rounded cursor-pointer"
+                      style={{ accentColor: primaryColor }}
                     />
                     <div className="flex-1">
                       <p className="font-medium text-white">{modifier.name}</p>
                     </div>
-                    <p className="text-blue-400 font-semibold">+${modifier.price.toFixed(2)}</p>
+                    <p className="font-semibold" style={{ color: lightColors[lightColors.length > 1 ? 1 : 0] }}>+${modifier.price.toFixed(2)}</p>
                   </label>
                 ))}
               </div>
@@ -497,9 +512,17 @@ export function ItemDetailModal({
         <div className="glass-header sticky bottom-0 p-6 flex items-center justify-between gap-4">
           <div className="text-right">
             <p className="text-sm text-gray-400 mb-1">Total Price</p>
-            <p className="text-2xl font-bold text-blue-400">${totalPrice.toFixed(2)}</p>
+            <p className="text-2xl font-bold" style={{ color: lightColors[lightColors.length > 1 ? 1 : 0] }}>${totalPrice.toFixed(2)}</p>
           </div>
-          <button onClick={handleAddToCart} className="glass-button-primary flex-1 py-3 text-lg rounded-lg">
+          <button
+            onClick={handleAddToCart}
+            className="flex-1 py-3 text-lg rounded-lg glass-button-primary transition"
+            style={{
+              backgroundColor: lightColors[0],
+              color: '#000000',
+              boxShadow: `0 0 16px ${lightColors[0]}A0`,
+            }}
+          >
             Add to Cart
           </button>
         </div>

@@ -1,0 +1,417 @@
+{
+  "Benjamin Franklin": {
+    "colors": [
+      {
+        "color": "#F01E2D",
+        "pixelCount": 2927,
+        "percentage": 35.41
+      },
+      {
+        "color": "#0F4B96",
+        "pixelCount": 2207,
+        "percentage": 26.7
+      },
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 642,
+        "percentage": 7.77
+      },
+      {
+        "color": "#004B96",
+        "pixelCount": 363,
+        "percentage": 4.39
+      },
+      {
+        "color": "#E11E2D",
+        "pixelCount": 244,
+        "percentage": 2.95
+      }
+    ],
+    "colorCount": 5
+  },
+  "Berkeley": {
+    "colors": [
+      {
+        "color": "#F01E2D",
+        "pixelCount": 5052,
+        "percentage": 54.46
+      },
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 1440,
+        "percentage": 15.52
+      },
+      {
+        "color": "#E11E2D",
+        "pixelCount": 249,
+        "percentage": 2.68
+      },
+      {
+        "color": "#D21E2D",
+        "pixelCount": 240,
+        "percentage": 2.59
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 134,
+        "percentage": 1.44
+      }
+    ],
+    "colorCount": 5
+  },
+  "Branford": {
+    "colors": [
+      {
+        "color": "#005A87",
+        "pixelCount": 1573,
+        "percentage": 16.99
+      },
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 1406,
+        "percentage": 15.18
+      },
+      {
+        "color": "#FFF000",
+        "pixelCount": 1219,
+        "percentage": 13.16
+      },
+      {
+        "color": "#004B87",
+        "pixelCount": 677,
+        "percentage": 7.31
+      },
+      {
+        "color": "#009669",
+        "pixelCount": 195,
+        "percentage": 2.11
+      }
+    ],
+    "colorCount": 5
+  },
+  "Davenport": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 13466,
+        "percentage": 64.73
+      },
+      {
+        "color": "#1E1E1E",
+        "pixelCount": 5044,
+        "percentage": 24.25
+      },
+      {
+        "color": "#2D2D2D",
+        "pixelCount": 258,
+        "percentage": 1.24
+      },
+      {
+        "color": "#878787",
+        "pixelCount": 234,
+        "percentage": 1.12
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 205,
+        "percentage": 0.99
+      }
+    ],
+    "colorCount": 5
+  },
+  "Ezra Stiles": {
+    "colors": [
+      {
+        "color": "#1E1E1E",
+        "pixelCount": 4035,
+        "percentage": 43.45
+      },
+      {
+        "color": "#FFF000",
+        "pixelCount": 2483,
+        "percentage": 26.74
+      },
+      {
+        "color": "#4B4B1E",
+        "pixelCount": 193,
+        "percentage": 2.08
+      },
+      {
+        "color": "#2D2D1E",
+        "pixelCount": 181,
+        "percentage": 1.95
+      },
+      {
+        "color": "#3C3C1E",
+        "pixelCount": 181,
+        "percentage": 1.95
+      }
+    ],
+    "colorCount": 5
+  },
+  "Grace Hopper": {
+    "colors": [
+      {
+        "color": "#005A96",
+        "pixelCount": 1848,
+        "percentage": 29.06
+      },
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 1040,
+        "percentage": 16.35
+      },
+      {
+        "color": "#000000",
+        "pixelCount": 495,
+        "percentage": 7.78
+      },
+      {
+        "color": "#004B96",
+        "pixelCount": 237,
+        "percentage": 3.73
+      },
+      {
+        "color": "#005AA5",
+        "pixelCount": 217,
+        "percentage": 3.41
+      }
+    ],
+    "colorCount": 5
+  },
+  "Jonathan Edwards": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 3635,
+        "percentage": 39.18
+      },
+      {
+        "color": "#00A578",
+        "pixelCount": 1590,
+        "percentage": 17.14
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 447,
+        "percentage": 4.82
+      },
+      {
+        "color": "#0F8769",
+        "pixelCount": 261,
+        "percentage": 2.81
+      },
+      {
+        "color": "#009678",
+        "pixelCount": 203,
+        "percentage": 2.19
+      }
+    ],
+    "colorCount": 5
+  },
+  "Morse": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 7318,
+        "percentage": 78.8
+      },
+      {
+        "color": "#1E1E1E",
+        "pixelCount": 289,
+        "percentage": 3.11
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 216,
+        "percentage": 2.33
+      },
+      {
+        "color": "#E1E1E1",
+        "pixelCount": 120,
+        "percentage": 1.29
+      }
+    ],
+    "colorCount": 4
+  },
+  "Pauli Murray": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 3245,
+        "percentage": 32.13
+      },
+      {
+        "color": "#005A96",
+        "pixelCount": 2903,
+        "percentage": 28.74
+      },
+      {
+        "color": "#F01E2D",
+        "pixelCount": 2094,
+        "percentage": 20.73
+      },
+      {
+        "color": "#004B96",
+        "pixelCount": 138,
+        "percentage": 1.37
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 126,
+        "percentage": 1.25
+      }
+    ],
+    "colorCount": 5
+  },
+  "Pierson": {
+    "colors": [
+      {
+        "color": "#1E1E1E",
+        "pixelCount": 5083,
+        "percentage": 54.72
+      },
+      {
+        "color": "#FFF000",
+        "pixelCount": 1923,
+        "percentage": 20.7
+      },
+      {
+        "color": "#2D2D1E",
+        "pixelCount": 323,
+        "percentage": 3.48
+      },
+      {
+        "color": "#D2C30F",
+        "pixelCount": 150,
+        "percentage": 1.61
+      },
+      {
+        "color": "#A5A50F",
+        "pixelCount": 141,
+        "percentage": 1.52
+      }
+    ],
+    "colorCount": 5
+  },
+  "Saybrook": {
+    "colors": [
+      {
+        "color": "#FFF000",
+        "pixelCount": 1842,
+        "percentage": 19.86
+      },
+      {
+        "color": "#005A87",
+        "pixelCount": 1679,
+        "percentage": 18.1
+      },
+      {
+        "color": "#1E1E1E",
+        "pixelCount": 1145,
+        "percentage": 12.34
+      },
+      {
+        "color": "#004B87",
+        "pixelCount": 456,
+        "percentage": 4.92
+      },
+      {
+        "color": "#F0F000",
+        "pixelCount": 175,
+        "percentage": 1.89
+      }
+    ],
+    "colorCount": 5
+  },
+  "Silliman": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 2861,
+        "percentage": 30.83
+      },
+      {
+        "color": "#F01E2D",
+        "pixelCount": 1937,
+        "percentage": 20.88
+      },
+      {
+        "color": "#00A569",
+        "pixelCount": 1422,
+        "percentage": 15.32
+      },
+      {
+        "color": "#FFF000",
+        "pixelCount": 233,
+        "percentage": 2.51
+      },
+      {
+        "color": "#0F4B3C",
+        "pixelCount": 175,
+        "percentage": 1.89
+      }
+    ],
+    "colorCount": 5
+  },
+  "Timothy Dwight": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 3591,
+        "percentage": 38.68
+      },
+      {
+        "color": "#F01E2D",
+        "pixelCount": 2863,
+        "percentage": 30.84
+      },
+      {
+        "color": "#E11E2D",
+        "pixelCount": 314,
+        "percentage": 3.38
+      },
+      {
+        "color": "#D21E2D",
+        "pixelCount": 202,
+        "percentage": 2.18
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 186,
+        "percentage": 2.0
+      }
+    ],
+    "colorCount": 5
+  },
+  "Trumbull": {
+    "colors": [
+      {
+        "color": "#FFFFFF",
+        "pixelCount": 5450,
+        "percentage": 58.69
+      },
+      {
+        "color": "#1E1E1E",
+        "pixelCount": 924,
+        "percentage": 9.95
+      },
+      {
+        "color": "#2D2D2D",
+        "pixelCount": 399,
+        "percentage": 4.3
+      },
+      {
+        "color": "#F0F0F0",
+        "pixelCount": 308,
+        "percentage": 3.32
+      },
+      {
+        "color": "#5A5A5A",
+        "pixelCount": 281,
+        "percentage": 3.03
+      }
+    ],
+    "colorCount": 5
+  }
+}
