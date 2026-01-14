@@ -2,11 +2,9 @@ import { useState } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
 import { Plus, Pencil, ExternalLink } from 'lucide-react';
 import { ItemDetailModal } from './ItemDetailModal';
-import { useColorPalette } from '../hooks/useColorPalette';
 
 interface MenuGridProps {
   items: MenuItem[];
-  selectedButtery: string | null;
   onAddToCart: (item: OrderItem) => void;
   cartCount?: number;
   onCartClick?: () => void;
@@ -19,7 +17,6 @@ interface MenuGridProps {
 
 export function MenuGrid({
   items,
-  selectedButtery,
   onAddToCart,
   cartCount = 0,
   onCartClick,
@@ -29,7 +26,6 @@ export function MenuGrid({
   onUpdateMenuItem,
   onCreateMenuItem
 }: MenuGridProps) {
-  const { lightColors } = useColorPalette(selectedButtery);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isCreatingItem, setIsCreatingItem] = useState(false);
 
@@ -40,6 +36,13 @@ export function MenuGrid({
   const handleEditClick = (e: React.MouseEvent, item: MenuItem) => {
     e.stopPropagation();
     setSelectedItem(item);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, itemId: string) => {
+    e.stopPropagation();
+    if (onDeleteMenuItem) {
+      onDeleteMenuItem(itemId);
+    }
   };
 
   const handleCreateClick = () => {
@@ -127,12 +130,7 @@ export function MenuGrid({
                           <div className="absolute top-2 right-2 flex gap-1">
                             <button
                               onClick={(e) => handleEditClick(e, item)}
-                              className="w-8 h-8 glass-button-primary rounded-full flex items-center justify-center transition transform hover:scale-110"
-                              style={{
-                                backgroundColor: lightColors[0],
-                                color: '#000000',
-                                boxShadow: `0 0 12px ${lightColors[0]}80`,
-                              }}
+                              className="w-8 h-8 glass-button-primary text-blue-300 rounded-full flex items-center justify-center shadow-md transition transform hover:scale-110"
                               aria-label={`Edit ${item.name}`}
                               title="Edit item"
                             >
@@ -143,7 +141,7 @@ export function MenuGrid({
                       </div>
                       <div className="p-4 flex-1 flex flex-col">
                         <h4 className="font-semibold text-sm text-white line-clamp-2">{item.name}</h4>
-                        <p className="font-bold text-lg mt-2" style={{ color: lightColors[lightColors.length > 1 ? 1 : 0] }}>${item.price.toFixed(2)}</p>
+                        <p className="text-blue-400 font-bold text-lg mt-2">${item.price.toFixed(2)}</p>
                         {item.hot && (
                           <span className="inline-block text-xs bg-red-500/20 text-red-400 border border-red-500/40 rounded px-2 py-1 mt-2 w-fit">
                             Hot
@@ -156,12 +154,7 @@ export function MenuGrid({
                       {!showEditControls && (
                         <button
                           onClick={() => handleAddItem(item)}
-                          className="absolute bottom-3 right-3 w-10 h-10 glass-button-primary rounded-full flex items-center justify-center transition transform hover:scale-110"
-                          style={{
-                            backgroundColor: lightColors[0],
-                            color: '#000000',
-                            boxShadow: `0 0 16px ${lightColors[0]}A0`,
-                          }}
+                          className="absolute bottom-3 right-3 w-10 h-10 glass-button-primary text-blue-300 rounded-full flex items-center justify-center shadow-lg transition transform hover:scale-110"
                           aria-label={`Add ${item.name}`}
                         >
                           <Plus size={20} />
@@ -180,7 +173,6 @@ export function MenuGrid({
           item={selectedItem}
           isEditMode={isEditMode}
           currentUser={currentUser}
-          selectedButtery={selectedButtery}
           onAddToCart={(orderItem) => {
             onAddToCart(orderItem);
             setSelectedItem(null);
@@ -196,7 +188,6 @@ export function MenuGrid({
           item={null}
           isEditMode={true}
           currentUser={currentUser}
-          selectedButtery={selectedButtery}
           onAddToCart={() => {}}
           onCreateMenuItem={(item) => {
             onCreateMenuItem(item);
