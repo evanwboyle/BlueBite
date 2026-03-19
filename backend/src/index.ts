@@ -42,6 +42,73 @@ app.use(passport.session());
 // Initialize Prisma Client
 const prisma = new PrismaClient();
 
+// ============================================
+// SSE (Server-Sent Events) Infrastructure
+// ============================================
+
+interface SSEClient {
+  id: string;
+  res: Response;
+  buttery: string | null;
+}
+
+const sseClients: SSEClient[] = [];
+
+function broadcastEvent(eventType: string, data: unknown, buttery?: string | null) {
+  const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+  const deadClients: number[] = [];
+  for (let i = 0; i < sseClients.length; i++) {
+    const client = sseClients[i];
+    // Send to all clients, or filter by buttery if both are specified
+    if (!buttery || !client.buttery || client.buttery === buttery) {
+      try {
+        client.res.write(payload);
+      } catch {
+        console.warn(`[SSE] Failed to write to client ${client.id}, marking for removal`);
+        deadClients.push(i);
+      }
+    }
+  }
+  // Clean up dead clients (reverse order to preserve indices)
+  for (let i = deadClients.length - 1; i >= 0; i--) {
+    sseClients.splice(deadClients[i], 1);
+  }
+}
+
+// SSE endpoint - clients connect here to receive real-time updates
+app.get("/api/events", (req: Request, res: Response) => {
+  const buttery = (req.query.buttery as string) || null;
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "http://localhost:5173",
+    "Access-Control-Allow-Credentials": "true",
+  });
+
+  // Send initial heartbeat
+  res.write("event: connected\ndata: {}\n\n");
+
+  const clientId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const client: SSEClient = { id: clientId, res, buttery };
+  sseClients.push(client);
+
+  console.log(`[SSE] Client ${clientId} connected (buttery: ${buttery || "all"}). Total: ${sseClients.length}`);
+
+  // Send heartbeat every 30s to keep connection alive
+  const heartbeat = setInterval(() => {
+    res.write(": heartbeat\n\n");
+  }, 30000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    const idx = sseClients.findIndex(c => c.id === clientId);
+    if (idx !== -1) sseClients.splice(idx, 1);
+    console.log(`[SSE] Client ${clientId} disconnected. Total: ${sseClients.length}`);
+  });
+});
+
 // Health check route
 app.get("/", (req: Request, res: Response) => {
   res.json({ message: "BlueBite API is running!", status: "ok" });
@@ -182,6 +249,7 @@ app.post("/api/menu", requireAuth, requireAdmin, async (req: Request, res: Respo
       },
       include: { modifiers: true },
     });
+    broadcastEvent("menu:created", item, item.buttery);
     res.status(201).json(item);
   } catch {
     res.status(500).json({ error: "Failed to create menu item" });
@@ -334,6 +402,7 @@ app.post("/api/orders", async (req: Request, res: Response) => {
         },
       },
     });
+    broadcastEvent("order:created", order, order.buttery);
     res.status(201).json(order);
   } catch (error) {
     console.error("Order creation error:", error);
@@ -424,6 +493,7 @@ app.patch("/api/orders/:orderId", async (req: Request, res: Response) => {
         },
       },
     });
+    broadcastEvent("order:updated", order, order.buttery);
     res.json(order);
   } catch {
     res.status(500).json({ error: "Failed to update order" });
@@ -474,6 +544,7 @@ app.patch("/api/menu/:itemId/toggle", requireAuth, requireStaff, async (req: Req
       include: { modifiers: true },
     });
 
+    broadcastEvent("menu:updated", item, item.buttery);
     res.json(item);
   } catch (error) {
     console.error('Toggle item error:', error);
@@ -493,6 +564,7 @@ app.put("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res
       include: { modifiers: true },
     });
 
+    broadcastEvent("menu:updated", item, item.buttery);
     res.json(item);
   } catch (error) {
     console.error('Update item error:', error);
@@ -532,6 +604,7 @@ app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, 
       }
     });
 
+    broadcastEvent("menu:deleted", { id: itemId }, menuItem.buttery);
     res.json({
       success: true,
       message: `Menu item "${menuItem.name}" archived successfully`
@@ -557,6 +630,7 @@ app.put("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, as
       data: { name, description, price },
     });
 
+    broadcastEvent("menu:updated", { id: req.params.itemId, modifierUpdated: modifier });
     res.json(modifier);
   } catch (error) {
     console.error('Update modifier error:', error);
@@ -569,6 +643,7 @@ app.delete("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin,
   try {
     const { modifierId } = req.params;
     await prisma.modifier.delete({ where: { id: modifierId } });
+    broadcastEvent("menu:updated", { id: req.params.itemId, modifierDeleted: modifierId });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete modifier error:', error);

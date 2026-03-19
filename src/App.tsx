@@ -1,16 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Order, OrderItem, MenuItem, User } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
 import { SettingsModal } from './components/SettingsModal';
 import { OrderManager } from './components/OrderManager';
+import { LoginPage } from './components/LoginPage';
 import { storage } from './utils/storage';
 import { api } from './utils/api';
 import { API_BASE_URL } from './utils/config';
 import { calculateCartTotal } from './utils/cart';
 import { enrichOrdersWithMenuNames } from './utils/order';
 import { optimisticUpdate } from './utils/optimistic';
+import { connectSSE } from './utils/sse';
+import type { SSEEventType } from './utils/sse';
 import { Bell } from 'lucide-react';
 
 function App() {
@@ -32,20 +35,31 @@ function App() {
   const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
   const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>([ ]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // Initialize on mount
+  // Track orders with in-flight optimistic mutations.
+  // SSE re-fetches will preserve the optimistic status for these orders
+  // instead of overwriting them with stale server state.
+  const pendingOrderUpdates = useRef<Map<string, Order['status']>>(new Map());
+
+  // Ref for menuItems so SSE handler always has current data without
+  // being in the useEffect dependency array (which would cause reconnects).
+  const menuItemsRef = useRef<MenuItem[]>(menuItems);
+  menuItemsRef.current = menuItems;
+
+  // Initialize on mount — fetch butteries and auth status in parallel
   useEffect(() => {
-    const init = async () => {
-      // Fetch buttery options
+    const fetchButteries = async () => {
       try {
         const butteries = await api.fetchButteries();
         setButteryOptions(butteries);
       } catch (err) {
         console.error('Failed to fetch butteries:', err);
       }
+    };
 
-      // Fetch current user login status
+    const fetchAuth = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/user`, {
           credentials: 'include',
@@ -56,12 +70,13 @@ function App() {
         }
       } catch (err) {
         console.error('Failed to check authentication status:', err);
-        setNotification('Unable to check authentication status');
-        setTimeout(() => setNotification(null), 3000);
+      } finally {
+        setAuthLoading(false);
       }
     };
 
-    init();
+    fetchButteries();
+    fetchAuth();
   }, []);
 
   // Load menu items when buttery changes - with progressive caching
@@ -151,27 +166,51 @@ function App() {
     loadOrders();
   }, [menuItems, selectedButtery]);
 
-  // Poll for orders frequently when in popout mode
+  // SSE: Real-time updates from the backend
   useEffect(() => {
-    if (!isPopout) return; // Only poll in popout mode
+    // Debounce timers — coalesce rapid SSE events into a single re-fetch
+    let orderDebounce: ReturnType<typeof setTimeout> | null = null;
+    let menuDebounce: ReturnType<typeof setTimeout> | null = null;
 
-    // Skip if menu items haven't loaded yet
-    if (menuItems.length === 0) return;
-
-    // Poll every 3 seconds for popout orders view
-    const pollInterval = setInterval(async () => {
-      try {
-        const allOrders = await api.fetchAllOrders(selectedButtery || undefined);
-        const enrichedOrders = enrichOrdersWithMenuNames(allOrders, menuItems);
-        setOrders(enrichedOrders);
-        storage.setCachedOrders(allOrders, selectedButtery);
-      } catch (err) {
-        console.error('[App.pollOrders] Failed to fetch orders:', err);
+    const connection = connectSSE(selectedButtery, (type: SSEEventType) => {
+      if (type === 'order:created' || type === 'order:updated') {
+        if (orderDebounce) clearTimeout(orderDebounce);
+        orderDebounce = setTimeout(() => {
+          api.fetchAllOrders(selectedButtery || undefined).then(freshOrders => {
+            const enriched = enrichOrdersWithMenuNames(freshOrders, menuItemsRef.current);
+            // Preserve optimistic status for orders with in-flight mutations
+            const merged = enriched.map(order => {
+              const pendingStatus = pendingOrderUpdates.current.get(order.id);
+              if (pendingStatus) {
+                return { ...order, status: pendingStatus };
+              }
+              return order;
+            });
+            setOrders(merged);
+            storage.setCachedOrders(merged, selectedButtery);
+          }).catch(err => {
+            console.error('[SSE] Failed to refresh orders after event:', err);
+          });
+        }, 500);
+      } else if (type === 'menu:created' || type === 'menu:updated' || type === 'menu:deleted') {
+        if (menuDebounce) clearTimeout(menuDebounce);
+        menuDebounce = setTimeout(() => {
+          api.fetchMenuItems(selectedButtery || undefined).then(freshMenu => {
+            setMenuItems(freshMenu);
+            storage.setCachedMenu(freshMenu, selectedButtery);
+          }).catch(err => {
+            console.error('[SSE] Failed to refresh menu after event:', err);
+          });
+        }, 500);
       }
-    }, 3000); // 3 second interval
+    });
 
-    return () => clearInterval(pollInterval);
-  }, [isPopout, menuItems, selectedButtery]);
+    return () => {
+      if (orderDebounce) clearTimeout(orderDebounce);
+      if (menuDebounce) clearTimeout(menuDebounce);
+      connection.close();
+    };
+  }, [selectedButtery]);
 
   const handleAddToCart = (item: OrderItem) => {
     const newCart = [...cartItems, item];
@@ -226,17 +265,21 @@ function App() {
     const order = orders.find(o => o.id === id);
     const previousStatus = order?.status;
 
+    // Mark this order as having a pending optimistic mutation.
+    // SSE re-fetches will preserve this status until the sync confirms it.
+    pendingOrderUpdates.current.set(id, status);
+
     // Use optimistic update pattern with retry logic
     optimisticUpdate.execute({
       // 1. Apply optimistic update immediately - UI updates instantly
       optimisticUpdate: () => {
-        const newOrders = orders.map(o =>
-          o.id === id ? { ...o, status } : o
-        );
-        setOrders(newOrders);
-
-        // Update cache with optimistic state
-        storage.setCachedOrders(newOrders, selectedButtery);
+        setOrders(prev => {
+          const newOrders = prev.map(o =>
+            o.id === id ? { ...o, status } : o
+          );
+          storage.setCachedOrders(newOrders, selectedButtery);
+          return newOrders;
+        });
 
         // Show success notification for certain status changes
         if (status === 'ready') {
@@ -251,33 +294,28 @@ function App() {
       // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)
       syncFn: () => api.updateOrderStatus(id, status),
 
-      // 3. On success - silent (no additional action needed, optimistic update already applied)
-      onSuccess: (updatedOrder) => {
-        // CRITICAL: Re-enrich the server response with menu names
-        // Server returns only item IDs, so we must look up names from current menu state
-        const enrichedOrder = enrichOrdersWithMenuNames([updatedOrder], menuItems)[0];
-
-        // Verify server state matches optimistic state
-        const newOrders = orders.map(o =>
-          o.id === id ? enrichedOrder : o
-        );
-        setOrders(newOrders);
-        storage.setCachedOrders(newOrders, selectedButtery);
+      // 3. On success - clear pending flag, let SSE handle final state
+      onSuccess: () => {
+        // Only clear if our status is still the pending one (not overwritten by a newer click)
+        if (pendingOrderUpdates.current.get(id) === status) {
+          pendingOrderUpdates.current.delete(id);
+        }
       },
 
       // 4. On error (after all 3 retries exhausted) - show warning but keep optimistic state
       onError: (error, attemptCount) => {
+        // Clear pending flag on error too
+        if (pendingOrderUpdates.current.get(id) === status) {
+          pendingOrderUpdates.current.delete(id);
+        }
         console.error(`Failed to sync order update after ${attemptCount} attempts:`, error);
         setNotification(`Warning: Order status change may not be saved (${error.message})`);
         setTimeout(() => setNotification(null), 5000);
-
-        // Note: We intentionally DO NOT revert the optimistic update
-        // The UI keeps the new status even if sync fails
-        // This prevents confusing UX where the status flips back and forth
       },
 
-      // 5. Unique ID for this update (allows cancellation if needed)
-      id: `order-${id}-${previousStatus}-to-${status}`,
+      // 5. Unique ID for this update — use just the order ID so rapid changes
+      // to the same order cancel the previous pending sync
+      id: `order-${id}`,
     });
   };
 
@@ -457,11 +495,32 @@ function App() {
     ? orders.filter(o => o.buttery === selectedButtery)
     : orders;
 
+  // Wait for auth check before rendering anything to avoid login page flash
+  if (authLoading) {
+    return null;
+  }
+
+  // Gate: must be logged in and have a buttery selected
+  if (!currentUser || (!selectedButtery && !isPopout)) {
+    return (
+      <LoginPage
+        currentUser={currentUser}
+        butteryOptions={butteryOptions}
+        onSelectButtery={(buttery) => handleButteryChange(buttery)}
+        onUserLogout={() => {
+          setCurrentUser(null);
+          setSelectedButtery(null);
+          storage.setSelectedButtery(null);
+        }}
+      />
+    );
+  }
+
   // Popout view for menu only
   if (popoutView === 'menu') {
     return (
       <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-        <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+        <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
 
         {/* Notification Overlay */}
         {notification && (
@@ -501,12 +560,13 @@ function App() {
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
             currentUser={currentUser}
-            onUserLogout={() => setCurrentUser(null)}
+            onUserLogout={() => {
+              setCurrentUser(null);
+              setSelectedButtery(null);
+              storage.setSelectedButtery(null);
+            }}
             isEditMode={isEditMode}
             onToggleEditMode={(enabled) => setIsEditMode(enabled)}
-            selectedButtery={selectedButtery}
-            butteryOptions={butteryOptions}
-            onButteryChange={handleButteryChange}
           />
         )}
       </div>
@@ -517,7 +577,7 @@ function App() {
   if (popoutView === 'orders') {
     return (
       <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-        <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+        <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
 
         {/* Notification Overlay */}
         {notification && (
@@ -538,12 +598,13 @@ function App() {
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
             currentUser={currentUser}
-            onUserLogout={() => setCurrentUser(null)}
+            onUserLogout={() => {
+              setCurrentUser(null);
+              setSelectedButtery(null);
+              storage.setSelectedButtery(null);
+            }}
             isEditMode={isEditMode}
             onToggleEditMode={(enabled) => setIsEditMode(enabled)}
-            selectedButtery={selectedButtery}
-            butteryOptions={butteryOptions}
-            onButteryChange={handleButteryChange}
           />
         )}
       </div>
@@ -553,7 +614,7 @@ function App() {
   // Normal dual-panel view
   return (
     <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-      <Header selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} onSettingsClick={() => setIsSettingsOpen(true)} />
+      <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
 
       {/* Notification Overlay */}
       {notification && (
@@ -632,7 +693,11 @@ function App() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           currentUser={currentUser}
-          onUserLogout={() => setCurrentUser(null)}
+          onUserLogout={() => {
+              setCurrentUser(null);
+              setSelectedButtery(null);
+              storage.setSelectedButtery(null);
+            }}
           isEditMode={isEditMode}
           onToggleEditMode={(enabled) => setIsEditMode(enabled)}
           selectedButtery={selectedButtery}

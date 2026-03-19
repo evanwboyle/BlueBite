@@ -1,7 +1,6 @@
 import { X, Settings, LogOut } from 'lucide-react';
 import { API_BASE_URL } from '../utils/config';
 import type { User } from '../types';
-import { ButterySelector } from './ButterySelector';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,9 +9,6 @@ interface SettingsModalProps {
   onUserLogout: () => void;
   isEditMode: boolean;
   onToggleEditMode: (enabled: boolean) => void;
-  selectedButtery: string | null;
-  butteryOptions: Array<{ name: string; itemCount: number }>;
-  onButteryChange: (buttery: string | null) => void;
 }
 
 export function SettingsModal({
@@ -22,16 +18,7 @@ export function SettingsModal({
   onUserLogout,
   isEditMode,
   onToggleEditMode,
-  selectedButtery,
-  butteryOptions,
-  onButteryChange
 }: SettingsModalProps) {
-
-  console.log('SettingsModal Props:', {
-    selectedButtery,
-    butteryOptions,
-    onButteryChange
-  });
 
   if (!isOpen) return null;
 
@@ -140,15 +127,6 @@ export function SettingsModal({
               )}
             </div>
 
-            {/* Buttery Selector Section */}
-            <div className="border-t border-white/10 pt-4 mt-4">
-              <h3 className="text-lg font-semibold text-white">Buttery Selector</h3>
-              <ButterySelector
-                selected={selectedButtery}
-                options={butteryOptions}
-                onChange={onButteryChange}
-              />
-            </div>
           </div>
         </div>
       </div>
