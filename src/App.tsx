@@ -285,14 +285,6 @@ function App() {
           return newOrders;
         });
 
-        // Show success notification for certain status changes
-        if (status === 'ready') {
-          setNotification('Order ready for pickup!');
-          setTimeout(() => setNotification(null), 2000);
-        } else if (status === 'completed') {
-          setNotification('Order completed!');
-          setTimeout(() => setNotification(null), 2000);
-        }
       },
 
       // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)

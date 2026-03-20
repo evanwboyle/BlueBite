@@ -2,6 +2,7 @@ import { Settings, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import type { User } from '../types';
 import { GlassPanel } from './ui';
+import { getCrestPath } from './ButterySelectionPage';
 
 interface HeaderProps {
   onSettingsClick: () => void;
@@ -55,7 +56,7 @@ export function Header({ onSettingsClick, currentUser, selectedButtery }: Header
     <GlassPanel
       level="modal"
       as="div"
-      className="flex items-center justify-between"
+      className="relative flex items-center justify-between"
       style={{ padding: '16px 24px' }}
     >
       <div className="flex items-center gap-3">
@@ -69,20 +70,32 @@ export function Header({ onSettingsClick, currentUser, selectedButtery }: Header
         >
           BlueBite
         </h1>
-        {selectedButtery && (
-          <span
-            style={{
-              color: 'var(--text-muted)',
-              fontSize: '0.875rem',
-              borderLeft: '1px solid rgba(120, 180, 255, 0.2)',
-              paddingLeft: '12px',
-              marginLeft: '4px',
-            }}
-          >
-            {selectedButtery}
-          </span>
-        )}
       </div>
+
+      {selectedButtery && (() => {
+        const crestPath = getCrestPath(selectedButtery);
+        return (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
+            {crestPath && (
+              <img src={crestPath} alt="" className="h-8 w-8 object-contain" />
+            )}
+            <span
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: '2rem',
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.01em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {selectedButtery}
+            </span>
+            {crestPath && (
+              <img src={crestPath} alt="" className="h-8 w-8 object-contain" />
+            )}
+          </div>
+        );
+      })()}
 
       <div className="flex items-center gap-3">
         {currentUser && (

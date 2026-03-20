@@ -29,7 +29,6 @@ BlueBite is a **full-stack React 19 web application** for a Yale Buttery orderin
 - **React 19** with TypeScript 5.9 (strict mode)
 - **Vite 7** for bundling and dev server
 - **Tailwind CSS 4** for styling with custom theme
-- **shadcn/ui** for component library
 - **Lucide React** for icons
 - **localStorage** for caching menu items and orders (progressive enhancement)
 
@@ -57,16 +56,25 @@ BlueBite/
 │   │   ├── Header.tsx           # Top navigation
 │   │   ├── MenuGrid.tsx         # Menu item display
 │   │   ├── ItemDetailModal.tsx  # Item details & modifiers
-│   │   ├── ModifierModal.tsx    # Add-on selection
 │   │   ├── CartModal.tsx        # Shopping cart & checkout
-│   │   ├── CartPanel.tsx        # Cart summary
-│   │   └── OrderManager.tsx     # Order tracking & management
+│   │   ├── OrderManager.tsx     # Order tracking & management
+│   │   ├── LoginPage.tsx        # CAS authentication login page
+│   │   ├── ButterySelectionPage.tsx # Buttery picker
+│   │   ├── SettingsModal.tsx    # User settings
+│   │   └── MarbleBackground.tsx # Animated background effect
 │   ├── styles/
-│   │   └── tokens.css           # CSS custom properties (design tokens from DESIGN.md)
+│   │   └── tokens.css           # CSS custom properties (design tokens)
 │   ├── utils/
-│   │   ├── storage.ts           # localStorage cache abstraction with buttery-aware caching
-│   │   └── mockData.ts          # Development seed data
-│   ├── types.ts                 # Shared TypeScript interfaces (MenuItem, Modifier, Order, User, etc.)
+│   │   ├── api.ts               # Backend API client (fetch wrappers for all endpoints)
+│   │   ├── config.ts            # App config (API_BASE_URL from VITE_API_URL)
+│   │   ├── sse.ts               # Server-Sent Events client (real-time order/menu updates)
+│   │   ├── storage.ts           # localStorage cache abstraction
+│   │   ├── cart.ts              # Cart total calculation
+│   │   ├── order.ts             # Order enrichment (menu name lookups)
+│   │   ├── optimistic.ts        # Optimistic UI update helpers
+│   │   ├── yalies.ts            # Yalies API integration
+│   │   └── yaliesCache.ts       # Yalies data caching
+│   ├── types.ts                 # Shared TypeScript interfaces
 │   ├── App.tsx                  # Main app with split-screen layout
 │   └── main.tsx                 # React root
 ├── backend/                     # Backend (Express + Prisma)
@@ -75,12 +83,17 @@ BlueBite/
 │   │   ├── auth/
 │   │   │   ├── cas.ts           # Passport CAS strategy configuration
 │   │   │   └── cas-wrapper.ts   # CAS authentication wrapper
+│   │   ├── middleware/
+│   │   │   ├── auth.ts          # requireAuth, requireStaff, requireAdmin middleware
+│   │   │   ├── security.ts      # Security middleware
+│   │   │   └── fieldAuthorization.ts # Field-level authorization
+│   │   ├── routes/
+│   │   │   └── menu.ts          # Menu route handlers
 │   │   └── seed.ts              # Database seeding script
 │   ├── prisma/
-│   │   └── schema.prisma        # Prisma schema (User, MenuItem, Modifier, Order, OrderItem models)
+│   │   └── schema.prisma        # Prisma schema
 │   └── package.json             # Backend dependencies
-├── public/                      # Static assets (favicon, etc.)
-├── documentation/               # Project documentation
+├── documentation/               # Project documentation (plans, integration guides)
 └── Configuration files
     ├── package.json             # Frontend dependencies
     ├── vite.config.ts           # Vite bundler config
@@ -94,11 +107,17 @@ BlueBite/
 ### Frontend State Management
 - **Unidirectional flow**: App.tsx manages all state, passes data down as props, receives updates via callbacks
 - **No external state management** - uses React hooks (useState, useEffect)
+- **Real-time updates via SSE**: `src/utils/sse.ts` connects to `/api/events` for order and menu change events (singleton EventSource pattern)
+- **Optimistic updates**: `src/utils/optimistic.ts` provides instant UI feedback before server confirmation
+- **API client**: `src/utils/api.ts` wraps all backend calls with type-safe response mapping
 - **Progressive caching**: localStorage caches API responses (menu items, orders) with buttery-aware invalidation
 - **Cache keys**: `bluebite_cache_menu`, `bluebite_cache_orders`, `bluebite_cart`, `bluebite_selected_buttery`
 
 ### Backend API Endpoints
 All endpoints are defined in `backend/src/index.ts`:
+
+**Real-time:**
+- `GET /api/events` - SSE stream for order and menu change events
 
 **Authentication (Yale CAS):**
 - `GET /api/auth/login` - Initiates CAS login and handles callback with ticket validation
@@ -110,13 +129,18 @@ All endpoints are defined in `backend/src/index.ts`:
 
 **Menu Items:**
 - `GET /api/menu` - Get all menu items (optional `?buttery=` filter)
-- `POST /api/menu` - Create menu item
+- `POST /api/menu` - Create menu item (requires admin)
 - `GET /api/menu/category/:category` - Get items by category
 - `GET /api/menu/:itemId` - Get single menu item with modifiers
+- `PUT /api/menu/:itemId` - Update menu item (requires admin)
+- `DELETE /api/menu/:itemId` - Delete menu item (requires admin)
+- `PATCH /api/menu/:itemId/toggle` - Toggle item availability (requires staff)
 
 **Modifiers:**
-- `POST /api/menu/:itemId/modifiers` - Create modifier for menu item
+- `POST /api/menu/:itemId/modifiers` - Create modifier (requires admin)
 - `GET /api/menu/:itemId/modifiers` - Get all modifiers for menu item
+- `PUT /api/menu/:itemId/modifiers/:modifierId` - Update modifier (requires admin)
+- `DELETE /api/menu/:itemId/modifiers/:modifierId` - Delete modifier (requires admin)
 
 **Orders:**
 - `POST /api/orders` - Create order with items (auto-creates user if needed)
@@ -146,11 +170,14 @@ All endpoints are defined in `backend/src/index.ts`:
 - Session-based authentication using `express-session`
 - Users are auto-created in database on first CAS login
 - NetID is the primary identifier throughout the system
+- **Role-based middleware** in `backend/src/middleware/auth.ts`: `requireAuth`, `requireStaff`, `requireAdmin`
+- **Field-level authorization** in `backend/src/middleware/fieldAuthorization.ts`
+- Admin-only: create/update/delete menu items and modifiers; Staff+: toggle item availability
 
 ## Key Frontend Features
 
 - **Split-screen layout**: Resizable left panel (ordering) and right panel (order management)
-- **Real-time order tracking**: Periodic polling for status updates
+- **Real-time order tracking**: Server-Sent Events (SSE) for live status updates
 - **Modifiers system**: Items can have add-ons/customizations
 - **Buttery filtering**: Multi-buttery support with user preference persistence
 - **UI Polish**: Semi-transparent blurred backgrounds, color-coded status badges, animations
@@ -208,6 +235,7 @@ All glassmorphism values (colors, blur, radii, shadows, text opacity) are CSS cu
 - **Component organization**: Each component handles its own local state; shared state managed in App.tsx
 - **Imports**: Use explicit relative paths (e.g., `./ItemDetailModal`), not index exports
 - **Storage utility**: Always use `src/utils/storage.ts` for localStorage operations (cache management, cart, buttery selection)
+- **Popout views**: App supports `?view=menu` and `?view=orders` query params for separate windows
 
 ### Backend
 - **Prisma workflow**: After modifying `schema.prisma`, run `npm run db:push` (from `backend/`) to sync with database
@@ -216,6 +244,7 @@ All glassmorphism values (colors, blur, radii, shadows, text opacity) are CSS cu
 - **Session secret**: Set `SESSION_SECRET` environment variable in production
 - **CORS configuration**: Frontend origin is configured via `CORS_ORIGIN` environment variable (defaults to localhost:5173)
 - **Database connection**: Requires `DATABASE_URL` and `DIRECT_URL` environment variables for Supabase PostgreSQL
+- **Tests**: Middleware tests in `backend/src/middleware/__tests__/` (auth, field authorization)
 
 ## Common Workflows
 
@@ -252,6 +281,11 @@ All glassmorphism values (colors, blur, radii, shadows, text opacity) are CSS cu
 3. Verify data via API endpoints or database client
 
 ## Environment Variables
+
+### Frontend (.env in project root)
+Optional (Vite exposes these via `import.meta.env`):
+- `VITE_API_URL` - Backend API base URL (default: "http://localhost:3000/api")
+- `VITE_YALIES_KEY` - Yalies API key for student directory lookups
 
 ### Backend (.env in backend/)
 Required:

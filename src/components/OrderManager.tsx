@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Order } from '../types';
-import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff } from 'lucide-react';
+import { ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 import { GlassPanel } from './ui';
@@ -18,6 +18,58 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [checkedItems, setCheckedItems] = useState<Map<string, Set<number>>>(new Map());
   const [locked, setLocked] = useState(false);
   const [unlockCountdown, setUnlockCountdown] = useState<number | null>(null);
+  const [lockJiggle, setLockJiggle] = useState(false);
+  const lockRef = useRef<HTMLButtonElement>(null);
+  const [tick, setTick] = useState(0);
+
+  // Tick every second for order timers
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatElapsed = useCallback((placedAt: number, endAt?: number): string => {
+    const end = endAt ?? Date.now();
+    const elapsed = Math.max(0, Math.floor((end - placedAt) / 1000));
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
+
+  const playDeniedSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Two-tone descending "nope" sound
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      const gain2 = ctx.createGain();
+      osc1.connect(gain1); gain1.connect(ctx.destination);
+      osc2.connect(gain2); gain2.connect(ctx.destination);
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.value = 440;
+      osc2.frequency.value = 330;
+      gain1.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      gain2.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.22);
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.12);
+      osc2.start(ctx.currentTime + 0.1);
+      osc2.stop(ctx.currentTime + 0.22);
+    } catch {}
+  }, []);
+
+  const triggerLockJiggle = useCallback(() => {
+    playDeniedSound();
+    setLockJiggle(true);
+    setTimeout(() => setLockJiggle(false), 500);
+  }, [playDeniedSound]);
 
   // Filter to past 12 hours and sort oldest to newest
   const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -181,23 +233,30 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
         </h2>
         <div className="flex items-center gap-3">
           <button
+            ref={lockRef}
             onClick={() => {
               if (locked) {
                 setUnlockCountdown(5);
               } else {
                 setLocked(true);
+                setExpandedOrders(new Set());
               }
             }}
             className={`glass-button ${locked ? 'glass-button-active' : ''} px-4 py-3 rounded-xl flex items-center gap-2`}
+            style={lockJiggle ? {
+              background: 'rgba(234, 179, 8, 0.5)',
+              boxShadow: '0 0 20px rgba(234, 179, 8, 0.6)',
+              transition: 'none',
+            } : {}}
             title={locked ? 'Click to unlock (5 second countdown)' : 'Lock orders while you order'}
             disabled={unlockCountdown !== null}
           >
             {unlockCountdown !== null ? (
               <span className="font-bold text-lg">{unlockCountdown}</span>
             ) : locked ? (
-              <LockOpen size={28} />
-            ) : (
               <Lock size={28} />
+            ) : (
+              <LockOpen size={28} />
             )}
           </button>
           <button
@@ -221,7 +280,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
 
       {/* Orders List */}
       <div className="flex-1 relative">
-        <div className={`absolute inset-0 overflow-y-auto p-4 ${locked ? 'blur-sm pointer-events-none' : ''} transition-all`}>
+        <div className="absolute inset-0 overflow-y-auto p-4 transition-all">
         {sortedOrders.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -230,175 +289,209 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {sortedOrders.map(order => (
-              <GlassPanel
-                key={order.id}
-                level="surface"
-                className="overflow-hidden"
-                style={{ padding: 0 }}
-                onMouseMove={handleMouseMove}
-              >
-                {/* Order Header */}
-                <button
-                  onClick={() => {
-                    const newExpanded = new Set(expandedOrders);
-                    if (newExpanded.has(order.id)) {
-                      newExpanded.delete(order.id);
-                    } else {
-                      newExpanded.add(order.id);
-                    }
-                    setExpandedOrders(newExpanded);
-                  }}
-                  className="w-full px-8 py-5 transition-all text-left flex items-center justify-between"
+            {sortedOrders.map((order, sortedIdx) => {
+              const isExpanded = !locked && expandedOrders.has(order.id);
+              const customerName = locked ? `Customer ${sortedIdx + 1}` : getCustomerDisplayName(order.netId);
+              const profileImg = userCache.get(order.netId)?.image || '/src/assets/no_image.png';
+              const itemSummary = order.items
+                .map(i => i.name || `Item ${i.menuItemId?.substring(0, 8) || '?'}`)
+                .join(', ');
+
+              return (
+                <GlassPanel
+                  key={order.id}
+                  level="surface"
+                  className="overflow-hidden"
+                  style={{ padding: 0 }}
+                  onMouseMove={handleMouseMove}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <p className="order-number">Order #{orderNumberMap.get(order.id)}</p>
-                      <span className={`status-badge status-${order.status}`}>
-                        {order.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-300">
-                      <span>Customer: <span className="customer-name">{getCustomerDisplayName(order.netId)}</span></span>
-                      <span className="text-white font-bold">${order.totalPrice.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  {expandedOrders.has(order.id) ? (
-                    <ChevronUp size={22} className="text-gray-400" />
-                  ) : (
-                    <ChevronDown size={22} className="text-gray-400" />
-                  )}
-                </button>
+                  {isExpanded ? (
+                    /* ── Expanded card ── */
+                    <div className="glass-expanded-details" style={{ padding: '24px' }}>
+                      {/* Profile photo + name centered — click to collapse */}
+                      <button
+                        onClick={() => {
+                          const newExpanded = new Set(expandedOrders);
+                          newExpanded.delete(order.id);
+                          setExpandedOrders(newExpanded);
+                        }}
+                        className="w-full flex flex-col items-center mb-4 cursor-pointer"
+                      >
+                        <img
+                          src={profileImg}
+                          alt={customerName}
+                          className="w-16 h-16 rounded-full object-cover border-2 border-white/10 shadow-lg mb-3"
+                        />
+                        <p className="order-number text-xl">Order #{orderNumberMap.get(order.id)}</p>
+                        <p className="text-sm text-gray-400 mt-1">{customerName}</p>
+                      </button>
 
-                {/* Order Details */}
-                {expandedOrders.has(order.id) && (
-                  <div className="glass-expanded-details px-8 py-5 space-y-4">
-                    {/* Customer Profile Image */}
-                    <div className="glass-profile-card flex items-center gap-4 p-3 rounded-lg">
-                      <img
-                        src={userCache.get(order.netId)?.image || '/src/assets/no_image.png'}
-                        alt={getCustomerDisplayName(order.netId)}
-                        className="w-20 h-20 rounded-full object-cover border-2 border-white/10 shadow-lg"
-                      />
-                      <div>
-                        <p className="text-sm font-bold text-white tracking-wide">{getCustomerDisplayName(order.netId)}</p>
-                        <p className="text-xs text-gray-400 mt-1">{order.netId}</p>
+                      {/* Segmented status control */}
+                      <div
+                        className="flex rounded-lg overflow-hidden mb-5"
+                        style={{
+                          border: '1px solid rgba(120, 180, 255, 0.15)',
+                          background: 'rgba(5, 12, 30, 0.5)',
+                        }}
+                      >
+                        {(['pending', 'preparing', 'ready'] as const).map(s => {
+                          const isActive = order.status === s;
+                          const label = s === 'pending' ? 'PENDING' : s === 'preparing' ? 'PROGRESS' : 'READY';
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => {
+                                if (!isActive) handleStatusChange(order, s);
+                              }}
+                              className="flex-1 py-2.5 text-xs font-bold tracking-wider uppercase transition-all"
+                              style={{
+                                background: isActive ? 'rgba(0, 102, 255, 0.35)' : 'transparent',
+                                color: isActive ? '#93c5fd' : 'rgba(255,255,255,0.4)',
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
                       </div>
-                    </div>
 
-                    {/* Items */}
-                    <div>
-                      <h4 className="text-xs font-extrabold text-gray-300 mb-3 uppercase tracking-widest">Items</h4>
-                      <div className="space-y-2">
+                      {/* Item checklist */}
+                      <div className="space-y-1 mb-4">
                         {order.items.map((item, idx) => {
-                          // Defensive check: ensure item name exists, provide fallback
                           const itemName = item.name || `Item ${item.menuItemId?.substring(0, 8) || 'Unknown'}`;
-
-                          // Log warning if name is missing (indicates enrichment failure)
-                          if (!item.name) {
-                            console.warn('[OrderManager] Order item missing name:', {
-                              orderId: order.id,
-                              itemIndex: idx,
-                              menuItemId: item.menuItemId,
-                              item
-                            });
-                          }
-
                           const orderCheckedItems = checkedItems.get(order.id) || new Set();
                           const isChecked = orderCheckedItems.has(idx);
 
                           const handleCheckChange = () => {
                             const newCheckedItems = new Map(checkedItems);
                             const orderItems = new Set(newCheckedItems.get(order.id) || []);
-
-                            if (isChecked) {
-                              orderItems.delete(idx);
-                            } else {
-                              orderItems.add(idx);
-                            }
-
+                            if (isChecked) orderItems.delete(idx); else orderItems.add(idx);
                             newCheckedItems.set(order.id, orderItems);
                             setCheckedItems(newCheckedItems);
                           };
 
                           return (
-                            <div key={idx} className="text-sm text-gray-200 bg-white/5 rounded-lg p-3">
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3 flex-1">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={handleCheckChange}
-                                    className="w-4 h-4 cursor-pointer"
-                                  />
-                                  <span className={`font-semibold ${isChecked ? 'line-through text-gray-400' : ''}`}>
-                                    {itemName} <span className="text-gray-400">x{item.quantity}</span>
-                                  </span>
-                                </div>
-                                <span className="font-bold text-white">${(item.price * item.quantity).toFixed(2)}</span>
-                              </div>
+                            <label
+                              key={idx}
+                              className="flex items-center gap-3 py-2.5 px-1 cursor-pointer text-sm"
+                              style={{ borderBottom: idx < order.items.length - 1 ? '1px solid rgba(120, 180, 255, 0.06)' : 'none' }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={handleCheckChange}
+                                className="w-5 h-5 rounded cursor-pointer accent-blue-500"
+                              />
+                              <span className={`font-medium ${isChecked ? 'line-through text-gray-500' : 'text-white'}`}>
+                                {itemName}
+                                {item.quantity > 1 && <span className="text-gray-400"> x{item.quantity}</span>}
+                              </span>
                               {item.modifiers && item.modifiers.length > 0 && (
-                                <div className="text-gray-400 ml-7 text-xs mt-1">
-                                  {item.modifiers.join(', ')}
-                                </div>
+                                <span className="text-gray-500 text-xs ml-auto">{item.modifiers.join(', ')}</span>
                               )}
-                            </div>
+                            </label>
                           );
                         })}
                       </div>
-                    </div>
 
-                    {/* Notes Section - Only show if there are special instructions */}
-                    {order.specialInstructions && order.specialInstructions.trim() && (
-                      <div className="glass-notes p-3 rounded-lg">
-                        <p className="text-xs font-bold text-yellow-300 uppercase tracking-wide">Special Instructions:</p>
-                        <p className="text-sm text-yellow-100 mt-2 leading-relaxed">{order.specialInstructions}</p>
+                      {/* Special instructions */}
+                      {order.specialInstructions && order.specialInstructions.trim() && (
+                        <div className="glass-notes p-3 rounded-lg mb-4">
+                          <p className="text-xs font-bold text-yellow-300 uppercase tracking-wide">Special Instructions:</p>
+                          <p className="text-sm text-yellow-100 mt-2 leading-relaxed">{order.specialInstructions}</p>
+                        </div>
+                      )}
+
+                      {/* Bottom actions row: cancel + complete + timer */}
+                      <div className="flex items-center gap-3 pt-2" style={{ borderTop: '1px solid rgba(120, 180, 255, 0.08)' }}>
+                        {getStatusButtons(order).includes('cancelled') && (
+                          <button
+                            onClick={() => handleStatusChange(order, 'cancelled')}
+                            className="text-xs font-semibold py-2 px-4 rounded-lg transition-all bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        {getStatusButtons(order).includes('completed') && (
+                          <button
+                            onClick={() => handleStatusChange(order, 'completed')}
+                            className="text-xs font-semibold py-2 px-4 rounded-lg transition-all bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25"
+                          >
+                            Complete
+                          </button>
+                        )}
+                        <span className="ml-auto text-sm font-mono tabular-nums text-gray-500">
+                          {order.status === 'completed' || order.status === 'cancelled'
+                            ? formatElapsed(order.placedAt, order.completedAt)
+                            : formatElapsed(order.placedAt)}
+                        </span>
                       </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 pt-2">
-                      {getStatusButtons(order).map(nextStatus => (
-                        <button
-                          key={nextStatus}
-                          onClick={() => handleStatusChange(order, nextStatus)}
-                          className={`flex-1 text-sm font-semibold py-2.5 px-4 rounded-lg transition-all ${
-                            nextStatus === 'preparing'
-                              ? 'glass-button-primary'
-                              : nextStatus === 'ready'
-                              ? 'bg-gradient-to-r from-green-500/30 to-green-600/30 border border-green-500/50 text-green-300 hover:from-green-500/40 hover:to-green-600/40 shadow-lg shadow-green-500/20'
-                              : nextStatus === 'completed'
-                              ? 'bg-gradient-to-r from-gray-500/30 to-gray-600/30 border border-gray-500/50 text-gray-300 hover:from-gray-500/40 hover:to-gray-600/40'
-                              : nextStatus === 'cancelled'
-                              ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 border border-red-500/50 text-red-300 hover:from-red-500/40 hover:to-red-600/40 shadow-lg shadow-red-500/20'
-                              : 'glass-button'
-                          }`}
-                        >
-                          {nextStatus === 'preparing' && <span>Start</span>}
-                          {nextStatus === 'ready' && <span>Mark Ready</span>}
-                          {nextStatus === 'completed' && <span>Complete</span>}
-                          {nextStatus === 'cancelled' && <span>Cancel</span>}
-                          {nextStatus === 'pending' && <span>Back</span>}
-                        </button>
-                      ))}
                     </div>
-                  </div>
-                )}
-              </GlassPanel>
-            ))}
+                  ) : (
+                    /* ── Collapsed card ── */
+                    <button
+                      onClick={() => {
+                        if (locked) {
+                          triggerLockJiggle();
+                          return;
+                        }
+                        const newExpanded = new Set(expandedOrders);
+                        newExpanded.add(order.id);
+                        setExpandedOrders(newExpanded);
+                      }}
+                      className="w-full text-left px-6 py-4 transition-all"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="order-number">Order #{orderNumberMap.get(order.id)}</p>
+                        <div className="flex items-center gap-3">
+                          {!locked && (
+                            <span className="text-xs font-mono tabular-nums text-gray-500">
+                              {order.status === 'completed' || order.status === 'cancelled'
+                                ? formatElapsed(order.placedAt, order.completedAt)
+                                : formatElapsed(order.placedAt)}
+                            </span>
+                          )}
+                          <span
+                            className="text-xs font-bold uppercase tracking-wide px-3 py-1 rounded-full"
+                            style={{
+                              color: order.status === 'pending' ? '#fde047'
+                                : order.status === 'preparing' ? '#60a5fa'
+                                : order.status === 'ready' ? '#4ade80'
+                                : order.status === 'completed' ? '#9ca3af'
+                                : '#f87171',
+                              background: order.status === 'pending' ? 'rgba(234, 179, 8, 0.2)'
+                                : order.status === 'preparing' ? 'rgba(0, 102, 255, 0.2)'
+                                : order.status === 'ready' ? 'rgba(34, 197, 94, 0.2)'
+                                : order.status === 'completed' ? 'rgba(107, 114, 128, 0.2)'
+                                : 'rgba(239, 68, 68, 0.2)',
+                              border: `1px solid ${
+                                order.status === 'pending' ? 'rgba(234, 179, 8, 0.4)'
+                                : order.status === 'preparing' ? 'rgba(0, 102, 255, 0.4)'
+                                : order.status === 'ready' ? 'rgba(34, 197, 94, 0.4)'
+                                : order.status === 'completed' ? 'rgba(107, 114, 128, 0.4)'
+                                : 'rgba(239, 68, 68, 0.4)'
+                              }`,
+                            }}
+                          >
+                            {order.status}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-400 mb-1">{locked ? `Customer ${sortedIdx + 1}` : `Customer: ${customerName}`}</p>
+                      {!locked && (
+                        <p className="text-sm text-blue-300/60 truncate">{itemSummary}</p>
+                      )}
+                    </button>
+                  )}
+                </GlassPanel>
+              );
+            })}
           </div>
         )}
         </div>
 
-        {/* Lock Overlay */}
-        {locked && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-xl z-40 pointer-events-none">
-            <div className="text-center">
-              <p className="text-xl font-bold text-white tracking-wide">Orders locked while you order...</p>
-            </div>
-          </div>
-        )}
       </div>
+
     </GlassPanel>
   );
 }

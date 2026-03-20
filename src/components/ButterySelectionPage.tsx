@@ -8,7 +8,7 @@ interface ButterySelectionPageProps {
   onSelectButtery: (buttery: string) => void;
 }
 
-const COLLEGE_CRESTS: Record<string, string> = {
+export const COLLEGE_CRESTS: Record<string, string> = {
   'Benjamin Franklin': '/assets/resco-icons/Benjamin Franklin.svg',
   'Berkeley': '/assets/resco-icons/Berkeley.svg',
   'Branford': '/assets/resco-icons/Branford.svg',
@@ -25,7 +25,7 @@ const COLLEGE_CRESTS: Record<string, string> = {
   'Trumbull': '/assets/resco-icons/Trumbull.svg',
 };
 
-function getCrestPath(butteryName: string): string | null {
+export function getCrestPath(butteryName: string): string | null {
   // Try to match "X Buttery" -> "X" against known colleges
   const normalized = butteryName.replace(/\s*Buttery$/i, '').trim();
   if (COLLEGE_CRESTS[normalized]) return COLLEGE_CRESTS[normalized];
