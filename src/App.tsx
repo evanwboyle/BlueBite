@@ -17,19 +17,7 @@ import { connectSSE } from './utils/sse';
 import type { SSEEventType } from './utils/sse';
 import { Bell } from 'lucide-react';
 import { GlassPanel } from './components/ui';
-const MarbleBackground = ({ blur, slow }: { blur?: number; slow?: number }) => {
-  const params = new URLSearchParams();
-  if (blur) params.set('blur', String(blur));
-  if (slow) params.set('slow', String(slow));
-  const qs = params.toString();
-  return (
-    <iframe
-      src={`/marble-bg.html${qs ? '?' + qs : ''}`}
-      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none', zIndex: 0, pointerEvents: 'none' }}
-      title="background"
-    />
-  );
-};
+import { MarbleBackground } from './components/MarbleBackground';
 
 function App() {
   // Detect if this is a popout view (menu-only or orders-only)
@@ -48,7 +36,10 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
   const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
-  const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>([ ]);
+  const [butteryOptions, setButteryOptions] = useState<Array<{name: string; itemCount: number}>>(() => {
+    const cachedNames = storage.getCachedButteryNames();
+    return cachedNames ? cachedNames.map(name => ({ name, itemCount: -1 })) : [];
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -69,6 +60,8 @@ function App() {
       try {
         const butteries = await api.fetchButteries();
         setButteryOptions(butteries);
+        // Cache just the buttery names for instant display next time
+        storage.setCachedButteryNames(butteries.map(b => b.name));
       } catch (err) {
         console.error('Failed to fetch butteries:', err);
       }
@@ -276,10 +269,6 @@ function App() {
   };
 
   const handleUpdateOrder = (id: string, status: Order['status']) => {
-    // Find the order to get its current status for logging
-    const order = orders.find(o => o.id === id);
-    const previousStatus = order?.status;
-
     // Mark this order as having a pending optimistic mutation.
     // SSE re-fetches will preserve this status until the sync confirms it.
     pendingOrderUpdates.current.set(id, status);
@@ -578,7 +567,7 @@ function App() {
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
           <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
           <div className="flex-1 overflow-hidden">
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} isPopout={true} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
           </div>
         </div>
 
@@ -708,9 +697,6 @@ function App() {
             }}
           isEditMode={isEditMode}
           onToggleEditMode={(enabled) => setIsEditMode(enabled)}
-          selectedButtery={selectedButtery}
-          butteryOptions={butteryOptions}
-          onButteryChange={handleButteryChange}
         />
       )}
     </div>

@@ -41,30 +41,13 @@
 /**
  * Configuration for retry logic
  */
-export interface RetryConfig {
-  /**
-   * Maximum number of retry attempts (excluding initial attempt)
-   * Default: 3
-   */
+interface RetryConfig {
   maxRetries?: number;
-
-  /**
-   * Retry delays in milliseconds [firstRetry, secondRetry, thirdRetry]
-   * Default: [10000, 20000, 30000] = retries at 10s, 20s, 30s after initial attempt
-   */
   retryDelays?: number[];
-
-  /**
-   * Whether to log retry attempts to console
-   * Default: true in development
-   */
   logRetries?: boolean;
 }
 
-/**
- * Options for executing an optimistic update
- */
-export interface OptimisticUpdateOptions<T> {
+interface OptimisticUpdateOptions<T> {
   /**
    * Function to apply the optimistic update to local state
    * This is called immediately and synchronously
@@ -228,55 +211,8 @@ export function createOptimisticUpdate(config: RetryConfig = {}) {
     attemptSync(pendingSync);
   }
 
-  /**
-   * Cancel a pending sync operation by ID
-   */
-  function cancel(id: string): boolean {
-    const pendingSync = pendingSyncs.get(id);
-    if (!pendingSync) {
-      return false;
-    }
-
-    if (pendingSync.timeoutId) {
-      clearTimeout(pendingSync.timeoutId);
-    }
-
-    pendingSyncs.delete(id);
-
-    if (retryConfig.logRetries) {
-      console.log(`[OptimisticUpdate ${id}] Cancelled`);
-    }
-
-    return true;
-  }
-
-  /**
-   * Cancel all pending sync operations
-   */
-  function cancelAll(): void {
-    pendingSyncs.forEach((pendingSync, id) => {
-      if (pendingSync.timeoutId) {
-        clearTimeout(pendingSync.timeoutId);
-      }
-      if (retryConfig.logRetries) {
-        console.log(`[OptimisticUpdate ${id}] Cancelled`);
-      }
-    });
-    pendingSyncs.clear();
-  }
-
-  /**
-   * Get count of pending sync operations
-   */
-  function getPendingCount(): number {
-    return pendingSyncs.size;
-  }
-
   return {
     execute,
-    cancel,
-    cancelAll,
-    getPendingCount,
   };
 }
 

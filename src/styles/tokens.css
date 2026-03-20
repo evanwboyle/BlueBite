@@ -10,7 +10,6 @@
   --font-body: "DM Sans", sans-serif;
 
   /* -- Background & Surface Colors (blue-tinted for marble bg) -- */
-  --color-void: #050a14;
   --glass-whisper: rgba(10, 22, 44, 0.82);    /* inner surfaces, cards */
   --glass-breath: rgba(12, 26, 50, 0.85);     /* main panels */
   --glass-mist: rgba(14, 30, 56, 0.90);       /* modals, focus surfaces */
@@ -19,7 +18,6 @@
   /* -- Borders -- */
   --border-glass: 1px solid rgba(100, 170, 255, 0.28);
   --border-glass-bright: 1px solid rgba(100, 170, 255, 0.38);
-  --border-glass-input: 1px solid rgba(100, 170, 255, 0.42);
   --border-color-default: rgba(100, 170, 255, 0.28);
   --border-color-bright: rgba(100, 170, 255, 0.38);
   --border-color-hover: rgba(100, 170, 255, 0.55);
@@ -56,8 +54,6 @@
 
   /* -- Accent Colors -- */
   --accent-blue: #3b82f6;
-  --accent-orange: #f97316;
-  --accent-red: rgba(239, 68, 68, 0.8);
 
   /* -- Transitions -- */
   --ease-glass: cubic-bezier(0.4, 0, 0.2, 1);

@@ -21,6 +21,7 @@ const CACHE_CONFIG = {
   KEYS: {
     MENU_ITEMS: 'bluebite_cache_menu',
     ORDERS: 'bluebite_cache_orders',
+    BUTTERIES: 'bluebite_cache_butteries',
     VERSION: 'bluebite_cache_version',
   },
   // Cache expiration (optional - we always fetch fresh data, but this can help with cleanup)
@@ -166,6 +167,15 @@ export const storage = {
     cache.set(CACHE_CONFIG.KEYS.MENU_ITEMS, menuItems, buttery);
   },
 
+  // Cache management for buttery names (just the list, not live status)
+  getCachedButteryNames: (): string[] | null => {
+    return cache.get<string[]>(CACHE_CONFIG.KEYS.BUTTERIES);
+  },
+
+  setCachedButteryNames: (names: string[]): void => {
+    cache.set(CACHE_CONFIG.KEYS.BUTTERIES, names);
+  },
+
   // Cache management for orders
   getCachedOrders: (buttery?: string | null): Order[] | null => {
     return cache.get<Order[]>(CACHE_CONFIG.KEYS.ORDERS, buttery);
@@ -175,19 +185,4 @@ export const storage = {
     cache.set(CACHE_CONFIG.KEYS.ORDERS, orders, buttery);
   },
 
-  // Get cache metadata
-  getMenuCacheInfo: () => cache.getMetadata(CACHE_CONFIG.KEYS.MENU_ITEMS),
-  getOrdersCacheInfo: () => cache.getMetadata(CACHE_CONFIG.KEYS.ORDERS),
-
-  // Clear all storage including cache
-  clear: (): void => {
-    localStorage.removeItem('bluebite_cart');
-    localStorage.removeItem('bluebite_selected_buttery');
-    cache.clear();
-  },
-
-  // Clear only cache (preserve cart and settings)
-  clearCache: (): void => {
-    cache.clear();
-  },
 };

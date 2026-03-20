@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Order } from '../types';
-import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 import { GlassPanel } from './ui';
@@ -8,7 +8,6 @@ import { GlassPanel } from './ui';
 interface OrderManagerProps {
   orders: Order[];
   onUpdateOrder: (id: string, status: Order['status']) => void;
-  isPopout?: boolean;
 }
 
 export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
@@ -183,51 +182,38 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              const url = new URL(window.location.href);
-              url.searchParams.set('view', 'orders');
-              window.open(url.toString(), '_blank');
-            }}
-            className="glass-button px-4 py-2 rounded-lg text-sm flex items-center gap-2"
-            aria-label="Open in new window"
-            title="Open in new window"
-          >
-            <ExternalLink size={16} />
-          </button>
-          <button
-            onClick={() => {
               if (locked) {
                 setUnlockCountdown(5);
               } else {
                 setLocked(true);
               }
             }}
-            className={`glass-button ${locked ? 'glass-button-active' : ''} px-4 py-2 rounded-lg text-sm flex items-center gap-2`}
+            className={`glass-button ${locked ? 'glass-button-active' : ''} px-4 py-3 rounded-xl flex items-center gap-2`}
             title={locked ? 'Click to unlock (5 second countdown)' : 'Lock orders while you order'}
             disabled={unlockCountdown !== null}
           >
             {unlockCountdown !== null ? (
-              <span className="font-bold text-base">{unlockCountdown}</span>
+              <span className="font-bold text-lg">{unlockCountdown}</span>
             ) : locked ? (
-              <LockOpen size={16} />
+              <LockOpen size={28} />
             ) : (
-              <Lock size={16} />
+              <Lock size={28} />
             )}
           </button>
           <button
             onClick={() => setHideCompleted(!hideCompleted)}
-            className={`glass-button ${hideCompleted ? 'glass-button-active' : ''} px-4 py-2 rounded-lg text-sm flex items-center gap-2`}
-            title="Toggle completed orders visibility"
+            className={`glass-button ${hideCompleted ? 'glass-button-active' : ''} px-4 py-3 rounded-xl flex items-center gap-2`}
+            title={hideCompleted ? 'Show completed orders' : 'Hide completed orders'}
           >
-            {hideCompleted ? 'Show Completed' : 'Hide Completed'}
+            {hideCompleted ? <EyeOff size={28} /> : <Eye size={28} />}
           </button>
           {undoStack.length > 0 && (
             <button
               onClick={handleUndo}
-              className="glass-button px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+              className="glass-button px-4 py-3 rounded-xl flex items-center gap-2"
               title="Undo last action"
             >
-              <RotateCcw size={16} />
-              Undo
+              <RotateCcw size={28} />
             </button>
           )}
         </div>
@@ -263,7 +249,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                     }
                     setExpandedOrders(newExpanded);
                   }}
-                  className="w-full p-5 transition-all text-left flex items-center justify-between"
+                  className="w-full px-8 py-5 transition-all text-left flex items-center justify-between"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
@@ -286,7 +272,7 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
 
                 {/* Order Details */}
                 {expandedOrders.has(order.id) && (
-                  <div className="glass-expanded-details p-5 space-y-4">
+                  <div className="glass-expanded-details px-8 py-5 space-y-4">
                     {/* Customer Profile Image */}
                     <div className="glass-profile-card flex items-center gap-4 p-3 rounded-lg">
                       <img

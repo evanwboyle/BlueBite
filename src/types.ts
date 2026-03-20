@@ -38,18 +38,10 @@ export interface Order {
   specialInstructions?: string;
 }
 
-export interface Resco {
-  id: string;
-  name: string;
-  hoursOpen: string;
-  coldFoodOnlyHours: string;
-}
-
 export interface User {
   netId: string;
   name?: string;
   picture?: string;
   phone?: string;
-  currentResco?: string;
   role?: string;
 }

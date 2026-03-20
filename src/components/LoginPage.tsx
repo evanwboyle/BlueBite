@@ -2,13 +2,7 @@ import { LogIn } from 'lucide-react';
 import { API_BASE_URL } from '../utils/config';
 import bluebiteLogo from '../assets/android-chrome-192x192.png';
 import { GlassPanel, GlassButton, GlassDivider, Text } from './ui';
-const MarbleBackground = () => (
-  <iframe
-    src="/marble-bg.html"
-    style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none', zIndex: 0, pointerEvents: 'none' }}
-    title="background"
-  />
-);
+import { MarbleBackground } from './MarbleBackground';
 
 export function LoginPage() {
   const handleCASLogin = () => {

@@ -1,5 +1,5 @@
-import { Settings, Maximize2, Minimize2 } from 'lucide-react';
-import { useState } from 'react';
+import { Settings, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import type { User } from '../types';
 import { GlassPanel } from './ui';
 
@@ -24,6 +24,18 @@ function getRoleLabel(role?: string): string {
 
 export function Header({ onSettingsClick, currentUser, selectedButtery }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [popoutOpen, setPopoutOpen] = useState(false);
+  const popoutRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoutRef.current && !popoutRef.current.contains(e.target as Node)) {
+        setPopoutOpen(false);
+      }
+    };
+    if (popoutOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [popoutOpen]);
 
   const handleFullscreenToggle = async () => {
     try {
@@ -93,19 +105,69 @@ export function Header({ onSettingsClick, currentUser, selectedButtery }: Header
             </span>
           </div>
         )}
+        <div className="relative" ref={popoutRef}>
+          <button
+            onClick={() => setPopoutOpen(!popoutOpen)}
+            className="glass-button px-4 py-3 rounded-xl transition"
+            title="Open in new window"
+          >
+            <ExternalLink size={28} />
+          </button>
+          {popoutOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-48 rounded-xl overflow-hidden shadow-xl"
+              style={{
+                background: 'var(--glass-fog)',
+                backdropFilter: 'var(--blur-lg)',
+                border: 'var(--border-glass-bright)',
+                zIndex: 100,
+              }}
+            >
+              <button
+                onClick={() => {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('view', 'menu');
+                  window.open(url.toString(), '_blank');
+                  setPopoutOpen(false);
+                }}
+                className="w-full text-left px-5 py-3 text-sm font-medium transition-colors"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(120, 180, 255, 0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Menu
+              </button>
+              <div style={{ height: '1px', background: 'rgba(120, 180, 255, 0.10)' }} />
+              <button
+                onClick={() => {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('view', 'orders');
+                  window.open(url.toString(), '_blank');
+                  setPopoutOpen(false);
+                }}
+                className="w-full text-left px-5 py-3 text-sm font-medium transition-colors"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(120, 180, 255, 0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Orders
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={onSettingsClick}
-          className="glass-button px-3 py-2 rounded-lg transition"
+          className="glass-button px-4 py-3 rounded-xl transition"
           title="Settings"
         >
-          <Settings size={18} />
+          <Settings size={28} />
         </button>
         <button
           onClick={handleFullscreenToggle}
-          className="glass-button px-3 py-2 rounded-lg transition"
+          className="glass-button px-4 py-3 rounded-xl transition"
           title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
-          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          {isFullscreen ? <Minimize2 size={28} /> : <Maximize2 size={28} />}
         </button>
       </div>
     </GlassPanel>

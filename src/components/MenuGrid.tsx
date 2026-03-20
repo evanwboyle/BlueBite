@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
-import { Plus, Pencil, ShoppingCart, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, ShoppingCart } from 'lucide-react';
 import { ItemDetailModal } from './ItemDetailModal';
 import { GlassPanel } from './ui';
 
@@ -67,33 +67,21 @@ export function MenuGrid({
           {showEditControls && onCreateMenuItem && (
             <button
               onClick={() => setIsCreatingItem(true)}
-              className="glass-button px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm"
+              className="glass-button px-4 py-3 rounded-xl transition flex items-center gap-2"
             >
-              <Plus size={16} />
-              Add Item
+              <Plus size={24} />
+              <span className="font-medium">Add Item</span>
             </button>
           )}
-          <button
-            onClick={() => {
-              const url = new URL(window.location.href);
-              url.searchParams.set('view', 'menu');
-              window.open(url.toString(), '_blank');
-            }}
-            className="glass-button px-3 py-2 rounded-lg transition"
-            aria-label="Open in new window"
-            title="Open in new window"
-          >
-            <ExternalLink size={16} />
-          </button>
           {onCartClick && (
             <button
               onClick={onCartClick}
-              className="glass-button px-3 py-2 rounded-lg transition relative"
+              className="glass-button px-4 py-3 rounded-xl transition relative"
               title="Cart"
             >
-              <ShoppingCart size={18} />
+              <ShoppingCart size={28} />
               {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
                   {cartCount}
                 </span>
               )}
@@ -116,13 +104,14 @@ export function MenuGrid({
             >
               {category}
             </h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="flex flex-wrap gap-4">
               {items
                 .filter(item => item.category === category && !item.disabled)
                 .map(item => (
                   <div
                     key={item.id}
                     className="relative group cursor-pointer"
+                    style={{ width: '220px' }}
                     onClick={() => !showEditControls && handleAddItem(item)}
                   >
                     <GlassPanel
@@ -175,7 +164,7 @@ export function MenuGrid({
                       </div>
 
                       {/* Info area */}
-                      <div className="p-4 flex-1 flex flex-col justify-end">
+                      <div className="px-6 py-4 flex-1 flex flex-col justify-end">
                         <h4
                           className="line-clamp-2"
                           style={{

@@ -1,12 +1,6 @@
 import type { User } from '../types';
 import { GlassPanel, Text } from './ui';
-const MarbleBackground = () => (
-  <iframe
-    src="/marble-bg.html"
-    style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none', zIndex: 0, pointerEvents: 'none' }}
-    title="background"
-  />
-);
+import { MarbleBackground } from './MarbleBackground';
 
 interface ButterySelectionPageProps {
   currentUser: User;
@@ -165,18 +159,24 @@ export function ButterySelectionPage({
                           <div className="flex items-center gap-1.5 mt-2">
                             <span
                               className="inline-block w-2 h-2 rounded-full"
-                              style={{ background: option.itemCount > 0 ? '#4ade80' : '#9ca3af' }}
+                              style={{
+                                background: option.itemCount < 0
+                                  ? '#9ca3af'
+                                  : option.itemCount > 0 ? '#4ade80' : '#9ca3af',
+                              }}
                             />
                             <Text
                               variant="label"
                               as="span"
                               style={{
                                 fontSize: '0.75rem',
-                                color: option.itemCount > 0 ? '#4ade80' : 'var(--text-muted)',
+                                color: option.itemCount < 0
+                                  ? '#9ca3af'
+                                  : option.itemCount > 0 ? '#4ade80' : 'var(--text-muted)',
                                 fontWeight: 600,
                               }}
                             >
-                              {option.itemCount > 0 ? 'Open' : 'Closed'}
+                              {option.itemCount < 0 ? 'Checking...' : option.itemCount > 0 ? 'Open' : 'Closed'}
                             </Text>
                           </div>
 
@@ -190,9 +190,11 @@ export function ButterySelectionPage({
                               letterSpacing: 'normal',
                             }}
                           >
-                            {option.itemCount > 0
-                              ? `${option.itemCount} items available`
-                              : 'No items listed'}
+                            {option.itemCount < 0
+                              ? '\u00A0'
+                              : option.itemCount > 0
+                                ? `${option.itemCount} items available`
+                                : 'No items listed'}
                           </Text>
                         </div>
                       </GlassPanel>

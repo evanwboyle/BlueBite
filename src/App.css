@@ -2,20 +2,6 @@
 
 @layer components {
 
-  /* Glassmorphism Container — simulated frosted glass (backdrop-filter can't blur the iframe bg) */
-  .glass-container {
-    background:
-      linear-gradient(
-        135deg,
-        rgba(30, 60, 110, 0.18) 0%,
-        rgba(10, 20, 45, 0.05) 50%,
-        rgba(20, 50, 100, 0.12) 100%
-      ),
-      var(--glass-breath);
-    border: var(--border-glass);
-    box-shadow: var(--shadow-glass), inset 0 1px 0 rgba(120, 180, 255, 0.06);
-  }
-
   .glass-header {
     background:
       linear-gradient(
