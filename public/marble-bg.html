@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Deep Blue Marble — FBO Particles + Curl Noise</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas { display: block; width: 100%; height: 100%; position: fixed; top: 0; left: 0; z-index: 0; }
+
+  /* ── Tweak Panel ── */
+  #tweakPanel {
+    position: fixed; top: 12px; right: 12px; z-index: 1000;
+    width: 280px; max-height: calc(100vh - 24px); overflow-y: auto;
+    background: rgba(0,10,30,0.85); backdrop-filter: blur(12px);
+    border: 1px solid rgba(80,180,255,0.2); border-radius: 10px;
+    padding: 14px 16px; font-family: system-ui, sans-serif;
+    color: rgba(255,255,255,0.85); font-size: 12px;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  #tweakPanel.collapsed { transform: translateX(calc(100% + 12px)); opacity: 0; pointer-events: none; }
+  #tweakToggle {
+    position: fixed; top: 12px; right: 12px; z-index: 1001;
+    background: rgba(0,10,30,0.7); border: 1px solid rgba(80,180,255,0.3);
+    color: #fff; border-radius: 6px; padding: 6px 10px; cursor: pointer;
+    font-family: system-ui, sans-serif; font-size: 12px;
+  }
+  #tweakToggle:hover { background: rgba(0,30,80,0.8); }
+  #tweakPanel h3 { margin: 0 0 10px; font-size: 13px; color: rgba(100,200,255,0.9); }
+  .tweak-section { margin-bottom: 10px; border-bottom: 1px solid rgba(80,180,255,0.1); padding-bottom: 8px; }
+  .tweak-section:last-child { border-bottom: none; margin-bottom: 0; }
+  .tweak-section summary { cursor: pointer; font-size: 11px; color: rgba(100,200,255,0.7); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tweak-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+  .tweak-row label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 6px; }
+  .tweak-row input[type=range] { width: 100px; accent-color: #4af; }
+  .tweak-row .tweak-val { width: 38px; text-align: right; font-variant-numeric: tabular-nums; color: rgba(100,200,255,0.8); font-size: 11px; }
+  #tweakPanel::-webkit-scrollbar { width: 4px; }
+  #tweakPanel::-webkit-scrollbar-thumb { background: rgba(80,180,255,0.3); border-radius: 2px; }
+
+</style>
+</head>
+<body>
+
+<button id="tweakToggle">Tweaks</button>
+<div id="tweakPanel" class="collapsed">
+  <h3>Physics Tweaks</h3>
+
+  <details class="tweak-section" open>
+    <summary>Particles</summary>
+    <div class="tweak-row"><label>Spring</label><input type="range" id="tw-spring" min="0" max="1" step="0.01" value="0.92"><span class="tweak-val" id="tv-spring">0.92</span></div>
+    <div class="tweak-row"><label>Curl Scale 1</label><input type="range" id="tw-curlScale1" min="0.05" max="2" step="0.05" value="0.4"><span class="tweak-val" id="tv-curlScale1">0.40</span></div>
+    <div class="tweak-row"><label>Curl Scale 2</label><input type="range" id="tw-curlScale2" min="0.1" max="4" step="0.1" value="1.0"><span class="tweak-val" id="tv-curlScale2">1.00</span></div>
+    <div class="tweak-row"><label>Curl Amp 1</label><input type="range" id="tw-curlAmp1" min="0" max="0.2" step="0.005" value="0.14"><span class="tweak-val" id="tv-curlAmp1">0.140</span></div>
+    <div class="tweak-row"><label>Curl Amp 2</label><input type="range" id="tw-curlAmp2" min="0" max="0.1" step="0.005" value="0.065"><span class="tweak-val" id="tv-curlAmp2">0.065</span></div>
+    <div class="tweak-row"><label>Curl Speed 1</label><input type="range" id="tw-curlSpeed1" min="0" max="0.3" step="0.01" value="0.06"><span class="tweak-val" id="tv-curlSpeed1">0.06</span></div>
+    <div class="tweak-row"><label>Curl Speed 2</label><input type="range" id="tw-curlSpeed2" min="0" max="0.3" step="0.01" value="0.08"><span class="tweak-val" id="tv-curlSpeed2">0.08</span></div>
+    <div class="tweak-row"><label>Life Speed</label><input type="range" id="tw-lifeSpeed" min="0.01" max="0.3" step="0.01" value="0.08"><span class="tweak-val" id="tv-lifeSpeed">0.08</span></div>
+    <div class="tweak-row"><label>Life Variance</label><input type="range" id="tw-lifeVar" min="0" max="0.2" step="0.01" value="0.04"><span class="tweak-val" id="tv-lifeVar">0.04</span></div>
+    <div class="tweak-row"><label>Marble Flow</label><input type="range" id="tw-marbleFlow" min="0" max="0.3" step="0.005" value="0.195"><span class="tweak-val" id="tv-marbleFlow">0.195</span></div>
+  </details>
+
+  <details class="tweak-section" open>
+    <summary>Display</summary>
+    <div class="tweak-row"><label>Particle Size</label><input type="range" id="tw-ptSize" min="1" max="15" step="0.5" value="5"><span class="tweak-val" id="tv-ptSize">5.0</span></div>
+    <div class="tweak-row"><label>Twinkle Speed</label><input type="range" id="tw-twinkle" min="0" max="10" step="0.5" value="3.0"><span class="tweak-val" id="tv-twinkle">3.0</span></div>
+    <div class="tweak-row"><label>Alpha</label><input type="range" id="tw-alpha" min="0.1" max="1" step="0.05" value="0.45"><span class="tweak-val" id="tv-alpha">0.45</span></div>
+  </details>
+
+  <details class="tweak-section" open>
+    <summary>Marble BG</summary>
+    <div class="tweak-row"><label>Speed</label><input type="range" id="tw-marbleSpeed" min="0" max="0.15" step="0.005" value="0.025"><span class="tweak-val" id="tv-marbleSpeed">0.025</span></div>
+    <div class="tweak-row"><label>Warp Strength</label><input type="range" id="tw-warpStr" min="0" max="8" step="0.5" value="2.0"><span class="tweak-val" id="tv-warpStr">2.0</span></div>
+    <div class="tweak-row"><label>Hotspot Glow</label><input type="range" id="tw-hotGlow" min="0" max="1" step="0.05" value="0.35"><span class="tweak-val" id="tv-hotGlow">0.35</span></div>
+  </details>
+
+  <details class="tweak-section" open>
+    <summary>Bloom</summary>
+    <div class="tweak-row"><label>Threshold</label><input type="range" id="tw-bloomThresh" min="0" max="1" step="0.02" value="0.18"><span class="tweak-val" id="tv-bloomThresh">0.18</span></div>
+    <div class="tweak-row"><label>Strength 1</label><input type="range" id="tw-bloomStr1" min="0" max="4" step="0.1" value="1.6"><span class="tweak-val" id="tv-bloomStr1">1.6</span></div>
+    <div class="tweak-row"><label>Strength 2</label><input type="range" id="tw-bloomStr2" min="0" max="4" step="0.1" value="1.0"><span class="tweak-val" id="tv-bloomStr2">1.0</span></div>
+    <div class="tweak-row"><label>Spread</label><input type="range" id="tw-bloomSpread" min="1" max="10" step="0.5" value="3.0"><span class="tweak-val" id="tv-bloomSpread">3.0</span></div>
+  </details>
+
+  <div style="display:flex;gap:6px;margin-top:8px;">
+    <button id="tweakSave" style="flex:1;padding:5px 0;background:rgba(0,80,180,0.4);border:1px solid rgba(80,180,255,0.3);color:#fff;border-radius:5px;cursor:pointer;font-size:11px;">Save</button>
+    <button id="tweakLoad" style="flex:1;padding:5px 0;background:rgba(0,80,180,0.4);border:1px solid rgba(80,180,255,0.3);color:#fff;border-radius:5px;cursor:pointer;font-size:11px;">Load</button>
+    <button id="tweakReset" style="flex:1;padding:5px 0;background:rgba(100,30,30,0.4);border:1px solid rgba(255,100,100,0.3);color:#fff;border-radius:5px;cursor:pointer;font-size:11px;">Reset</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const NOISE_GLSL = /* glsl */ `
+vec4 permute(vec4 x){ return mod(((x*34.0)+1.0)*x, 289.0); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+
+float snoise(vec3 v){
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g  = step(x0.yzx, x0.xyz);
+  vec3 l  = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod(i, 289.0);
+  vec4 p = permute(permute(permute(
+    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+  + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+  + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 1.0/7.0;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x  = x_ * ns.x + ns.yyyy;
+  vec4 y  = y_ * ns.x + ns.yyyy;
+  vec4 h  = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}
+
+vec3 curlNoise(vec3 p) {
+  float e = 0.1;
+  vec3 dx = vec3(e, 0.0, 0.0);
+  vec3 dy = vec3(0.0, e, 0.0);
+  vec3 dz = vec3(0.0, 0.0, e);
+  float n01 = snoise(p + dy); float n02 = snoise(p - dy);
+  float n03 = snoise(p + dz); float n04 = snoise(p - dz);
+  float n05 = snoise(p + dx); float n06 = snoise(p - dx);
+  float x = (n02 - n01) - (n04 - n03);
+  float y = (n04 - n03) - (n06 - n05);
+  float z = (n06 - n05) - (n02 - n01);
+  return normalize(vec3(x, y, z) / (2.0 * e));
+}
+`;
+
+// ── Renderer ──
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.autoClear = false;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+// ── Background Marble Shader ──
+const marbleUniforms = {
+  uTime: { value: 0 },
+  uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+  uMarbleSpeed: { value: 0.025 },
+  uWarpStr: { value: 2.0 },
+  uHotGlow: { value: 0.35 },
+};
+
+const marbleMaterial = new THREE.ShaderMaterial({
+  uniforms: marbleUniforms,
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform float uTime;
+    uniform vec2 uResolution;
+    uniform float uMarbleSpeed;
+    uniform float uWarpStr;
+    uniform float uHotGlow;
+    varying vec2 vUv;
+    ${NOISE_GLSL}
+
+    // Ultra-smooth: only 2 octaves for silk-like flowing bands
+    float fbm2(vec3 p) {
+      return 0.6 * snoise(p) + 0.3 * snoise(p * 2.0);
+    }
+
+    // Slightly more detailed version for secondary patterns
+    float fbm3(vec3 p) {
+      return 0.55 * snoise(p) + 0.3 * snoise(p * 2.0) + 0.15 * snoise(p * 4.0);
+    }
+
+    float marble(vec2 uv, float t) {
+      vec3 p = vec3(uv.x * 0.5, uv.y * 0.7, t * uMarbleSpeed);
+
+      float q1 = fbm2(p + vec3(1.7, 9.2, 0.0));
+      float q2 = fbm2(p + vec3(8.3, 2.8, 0.0));
+
+      float r1 = fbm2(p + 3.5 * vec3(q1, q2, 0.0) + vec3(1.0, 6.0, t * 0.02));
+      float r2 = fbm2(p + 3.5 * vec3(q2, q1, 0.0) + vec3(3.0, 1.0, t * 0.025));
+
+      return fbm2(p + uWarpStr * vec3(r1, r2, 0.0) + vec3(0.0, 0.0, t * 0.012));
+    }
+
+    // Detail layer — adds visible swirl banding in darker regions
+    float marbleDetail(vec2 uv, float t) {
+      vec3 p = vec3(uv * 1.0, t * 0.025);
+      float q1 = fbm3(p + vec3(5.2, 1.3, 0.0));
+      float q2 = fbm3(p + vec3(2.6, 7.4, 0.0));
+      return fbm3(p + 3.5 * vec3(q1, q2, 0.0));
+    }
+
+    void main() {
+      vec2 uv = vUv;
+      float aspect = uResolution.x / uResolution.y;
+      uv.x *= aspect;
+
+      float t = uTime;
+
+      // Primary smooth marble field
+      float m = marble(uv, t);
+      float n = m * 0.5 + 0.5;
+
+      // Secondary subtle detail for banding texture
+      float detail = marbleDetail(uv, t);
+      float nd = detail * 0.5 + 0.5;
+
+      // Blend: smooth base with detail filling in dark areas more
+      float detailBoost = (1.0 - smoothstep(0.15, 0.50, n)) * 0.12;
+      float combined = n * (0.80 - detailBoost) + nd * (0.20 + detailBoost);
+
+      // Gentle power curve
+      float shaped = pow(combined, 1.35);
+
+      // Color ramp: dark navy base → teal → cyan
+      // Darkest areas still have some navy color, not pure black
+      vec3 c0 = vec3(0.0, 0.025, 0.07);   // dark navy (not pure black)
+      vec3 c1 = vec3(0.0, 0.05, 0.14);    // dark navy
+      vec3 c2 = vec3(0.0, 0.10, 0.24);    // dark navy
+      vec3 c3 = vec3(0.0, 0.17, 0.37);    // navy
+      vec3 c4 = vec3(0.0, 0.29, 0.52);    // blue
+      vec3 c5 = vec3(0.02, 0.44, 0.65);   // teal-blue (warmer)
+      vec3 c6 = vec3(0.06, 0.58, 0.76);   // teal (more green, warmer)
+      vec3 c7 = vec3(0.14, 0.74, 0.90);   // bright teal-cyan
+
+      vec3 color;
+      if      (shaped < 0.12) color = mix(c0, c1, shaped / 0.12);
+      else if (shaped < 0.26) color = mix(c1, c2, (shaped - 0.12) / 0.14);
+      else if (shaped < 0.40) color = mix(c2, c3, (shaped - 0.26) / 0.14);
+      else if (shaped < 0.54) color = mix(c3, c4, (shaped - 0.40) / 0.14);
+      else if (shaped < 0.67) color = mix(c4, c5, (shaped - 0.54) / 0.13);
+      else if (shaped < 0.80) color = mix(c5, c6, (shaped - 0.67) / 0.13);
+      else                    color = mix(c6, c7, (shaped - 0.80) / 0.20);
+
+      // ── Glow hotspots — brighter bioluminescent pools ──
+      vec3 hotP = vec3(uv * 0.5, t * 0.03);
+      float hotField = snoise(hotP + vec3(3.1, 7.5, 0.0));
+      float hotField2 = snoise(hotP * 1.5 + vec3(9.2, 2.1, t * 0.02));
+      float hotField3 = snoise(hotP * 0.7 + vec3(5.5, 1.3, t * 0.015));
+
+      // Bioluminescent pools — visible but not overwhelming
+      float hotspot = smoothstep(0.30, 0.65, hotField) * smoothstep(0.60, 0.85, n);
+      float hotspot2 = smoothstep(0.25, 0.60, hotField2) * smoothstep(0.55, 0.80, n);
+      float hotspot3 = smoothstep(0.35, 0.65, hotField3) * smoothstep(0.62, 0.85, n);
+      float combinedHot = max(hotspot, max(hotspot2 * 0.6, hotspot3 * 0.4));
+
+      // Cyan glow with white peak — controlled intensity
+      vec3 hotColor = vec3(0.25, 0.65, 0.88);
+      vec3 hotWhite = vec3(0.50, 0.82, 0.98);
+      color += combinedHot * hotColor * uHotGlow;
+      color += pow(combinedHot, 2.5) * hotWhite * 0.22;
+      color += pow(combinedHot, 5.0) * vec3(0.8, 0.93, 1.0) * 0.12;
+
+      // Layered liquid banding
+      float banding = sin(detail * 5.0 + m * 4.0 + t * 0.05);
+      banding = smoothstep(-0.15, 0.15, banding) * 0.08;
+      color += banding * vec3(0.02, 0.12, 0.22) * smoothstep(0.25, 0.55, n);
+
+      // Edge contrast between dark and light bands
+      float edgeGrad = abs(dFdx(shaped)) + abs(dFdy(shaped));
+      float edgeHighlight = smoothstep(0.0, 0.02, edgeGrad) * 0.08;
+      color += edgeHighlight * vec3(0.03, 0.15, 0.28) * smoothstep(0.30, 0.65, n);
+
+      // Wide smooth glow bands on ridges
+      float glowBand = smoothstep(0.55, 0.82, n);
+      color += glowBand * vec3(0.04, 0.22, 0.38) * 0.38;
+
+      // Fill darkest voids with subtle detail — source has no pure black areas
+      // Add a faint secondary swirl pattern visible even in dark regions
+      float fillNoise = snoise(vec3(uv * 1.8, t * 0.03 + 5.0));
+      float fillAmount = (1.0 - smoothstep(0.0, 0.30, shaped));
+      color += fillAmount * (0.5 + 0.5 * fillNoise) * vec3(0.0, 0.03, 0.08) * 0.6;
+
+      // Very gentle vignette
+      vec2 vc = vUv - 0.5;
+      float vig = 1.0 - dot(vc, vc) * 0.3;
+      vig = clamp(vig, 0.0, 1.0);
+      color *= vig;
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+  depthTest: false,
+  depthWrite: false,
+});
+
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), marbleMaterial));
+
+// ── FBO Particle System ──
+const PARTICLE_COUNT_SQRT = 256;
+const PARTICLE_COUNT = PARTICLE_COUNT_SQRT * PARTICLE_COUNT_SQRT;
+
+// ── Font-glyph particle system ──
+// Renders a character to an offscreen canvas, samples filled pixels,
+// then places particle instances of that glyph across the scene.
+// Change GLYPH_CHAR to swap the letter.
+const GLYPH_CHAR = 'y';
+const GLYPH_FONT = 'italic 200px Georgia, "Times New Roman", serif';
+
+// Rasterize glyph → array of { x, y, edgeness } points
+// edgeness = 1.0 near edges, 0.0 deep interior — used to weight sampling toward strokes
+function rasterizeGlyph(char, font, resolution = 256) {
+  // Use tall canvas to ensure descenders (y, g, p, q, j) aren't clipped
+  const canvas = document.createElement('canvas');
+  canvas.width = resolution;
+  canvas.height = resolution;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, resolution, resolution);
+
+  ctx.font = font;
+  ctx.textAlign = 'center';
+  // Use 'alphabetic' baseline and position text at 40% from top
+  // to give plenty of room for descenders below
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(char, resolution / 2, resolution * 0.45);
+
+  const imageData = ctx.getImageData(0, 0, resolution, resolution);
+  const d = imageData.data;
+
+  // First pass: find all filled pixels
+  const filled = new Uint8Array(resolution * resolution);
+  for (let i = 0; i < resolution * resolution; i++) {
+    filled[i] = d[i * 4] > 128 ? 1 : 0;
+  }
+
+  // Second pass: compute distance to nearest edge (simple BFS-like approximation)
+  // Edge = filled pixel adjacent to unfilled pixel
+  const edgePoints = []; // high priority (edge)
+  const innerPoints = []; // low priority (interior)
+
+  for (let py = 0; py < resolution; py++) {
+    for (let px = 0; px < resolution; px++) {
+      const i = py * resolution + px;
+      if (!filled[i]) continue;
+
+      // Check if any neighbor is unfilled → this is an edge pixel
+      let isEdge = false;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = px + dx, ny = py + dy;
+          if (nx < 0 || nx >= resolution || ny < 0 || ny >= resolution) { isEdge = true; continue; }
+          if (!filled[ny * resolution + nx]) isEdge = true;
+        }
+      }
+
+      const pt = [
+        (px / resolution) - 0.5,
+        0.5 - (py / resolution)
+      ];
+
+      if (isEdge) {
+        edgePoints.push(pt);
+      } else {
+        innerPoints.push(pt);
+      }
+    }
+  }
+
+  return { edgePoints, innerPoints };
+}
+
+const { edgePoints, innerPoints } = rasterizeGlyph(GLYPH_CHAR, GLYPH_FONT);
+
+function createDataTexture(size) {
+  const data = new Float32Array(size * size * 4);
+
+  // Glyph instances placed across the scene
+  const glyphInstances = [
+    // Spread across full viewport (-2.5 to 2.5 x, -1.3 to 1.3 y)
+    { cx:-2.2, cy:-0.8, scale:0.60, angle:-0.30 },
+    { cx:-1.4, cy: 0.4, scale:0.70, angle: 0.25 },
+    { cx:-0.6, cy:-0.5, scale:0.65, angle:-0.15 },
+    { cx:-0.1, cy: 0.6, scale:0.55, angle: 0.35 },
+    { cx: 0.5, cy:-0.1, scale:0.70, angle:-0.20 },
+    { cx: 1.1, cy: 0.5, scale:0.60, angle: 0.15 },
+    { cx: 1.1, cy:-0.7, scale:0.55, angle:-0.35 },
+    { cx: 1.8, cy: 0.0, scale:0.65, angle: 0.30 },
+    { cx: 2.3, cy:-0.5, scale:0.50, angle:-0.25 },
+    { cx:-1.8, cy:-0.2, scale:0.50, angle: 0.10 },
+  ];
+
+  // Flowing trail paths spread across full screen
+  const trails = [
+    { cx:-2.5, cy:-1.0, ex:-1.2, ey:-0.3, bend:0.4, spread:0.22 },
+    { cx:-1.5, cy: 0.0, ex:-0.3, ey: 0.6, bend:-0.3, spread:0.20 },
+    { cx:-0.5, cy:-0.8, ex: 0.6, ey:-0.2, bend:0.25, spread:0.20 },
+    { cx: 0.3, cy: 0.3, ex: 1.5, ey: 0.8, bend:-0.2, spread:0.20 },
+    { cx: 0.8, cy:-0.6, ex: 2.0, ey: 0.0, bend:0.3, spread:0.18 },
+    { cx: 1.5, cy: 0.2, ex: 2.5, ey: 0.7, bend:-0.15, spread:0.18 },
+    { cx:-2.0, cy: 0.5, ex:-0.8, ey: 1.0, bend:0.2, spread:0.18 },
+    { cx:-0.8, cy:-1.0, ex: 0.5, ey:-0.6, bend:-0.2, spread:0.18 },
+  ];
+
+  // Particle budget: 50% glyphs, 30% trails, 20% ambient
+  const totalParticles = size * size;
+  const glyphParticles = Math.floor(totalParticles * 0.50);
+  const trailParticles = Math.floor(totalParticles * 0.30);
+  const ambientParticles = totalParticles - glyphParticles - trailParticles;
+
+  const particlesPerGlyph = Math.floor(glyphParticles / glyphInstances.length);
+
+  // Helper: bezier point
+  function bezierPt(ax, ay, mx, my, bx, by, t) {
+    return [
+      (1-t)*(1-t)*ax + 2*(1-t)*t*mx + t*t*bx,
+      (1-t)*(1-t)*ay + 2*(1-t)*t*my + t*t*by
+    ];
+  }
+
+  let idx = 0;
+
+  // Place glyph particles
+  for (const inst of glyphInstances) {
+    const cos_a = Math.cos(inst.angle), sin_a = Math.sin(inst.angle);
+    for (let p = 0; p < particlesPerGlyph && idx < totalParticles; p++) {
+      const i4 = idx * 4;
+      // Pick a point — 65% edge pixels, 35% interior for stroke-heavy look
+      const useEdge = Math.random() < 0.65 && edgePoints.length > 0;
+      const pool = useEdge ? edgePoints : innerPoints;
+      const pt = pool[Math.floor(Math.random() * pool.length)];
+      // Scale and rotate
+      let lx = pt[0] * inst.scale;
+      let ly = pt[1] * inst.scale;
+      const rx = lx * cos_a - ly * sin_a;
+      const ry = lx * sin_a + ly * cos_a;
+      // Jitter for organic sparkle-dust feel
+      const jitter = 0.015 * inst.scale;
+      data[i4 + 0] = inst.cx + rx + (Math.random() - 0.5) * jitter;
+      data[i4 + 1] = inst.cy + ry + (Math.random() - 0.5) * jitter;
+      data[i4 + 2] = (Math.random() - 0.5) * 0.3;
+      data[i4 + 3] = Math.random();
+      idx++;
+    }
+  }
+
+  // Place trail particles
+  const particlesPerTrail = Math.floor(trailParticles / trails.length);
+  for (const tr of trails) {
+    for (let p = 0; p < particlesPerTrail && idx < totalParticles; p++) {
+      const i4 = idx * 4;
+      const t = Math.random();
+      const mx = (tr.cx + tr.ex) * 0.5 + tr.bend;
+      const my = (tr.cy + tr.ey) * 0.5 + tr.bend * 0.5;
+      const [bx, by] = bezierPt(tr.cx, tr.cy, mx, my, tr.ex, tr.ey, t);
+      const dx = tr.ex - tr.cx, dy = tr.ey - tr.cy;
+      const len = Math.sqrt(dx*dx + dy*dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const offset = (Math.random() - 0.5) * 2 * tr.spread * Math.random();
+      data[i4 + 0] = bx + nx * offset;
+      data[i4 + 1] = by + ny * offset;
+      data[i4 + 2] = (Math.random() - 0.5) * 0.3;
+      data[i4 + 3] = Math.random();
+      idx++;
+    }
+  }
+
+  // Ambient scatter
+  while (idx < totalParticles) {
+    const i4 = idx * 4;
+    data[i4 + 0] = (Math.random() - 0.5) * 6.0;
+    data[i4 + 1] = (Math.random() - 0.5) * 3.5;
+    data[i4 + 2] = (Math.random() - 0.5) * 0.3;
+    data[i4 + 3] = Math.random();
+    idx++;
+  }
+
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+const initPositionTex = createDataTexture(PARTICLE_COUNT_SQRT);
+
+function createFBORT(size) {
+  return new THREE.WebGLRenderTarget(size, size, {
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    format: THREE.RGBAFormat,
+    type: THREE.FloatType,
+    depthBuffer: false,
+    stencilBuffer: false,
+  });
+}
+
+let fboA = createFBORT(PARTICLE_COUNT_SQRT);
+let fboB = createFBORT(PARTICLE_COUNT_SQRT);
+
+// ── Marble feedback texture (low-res copy for particle sim) ──
+const marbleFeedbackRT = new THREE.WebGLRenderTarget(256, 256, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat,
+});
+
+const fboScene = new THREE.Scene();
+const fboCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+const fboSimMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    uPositions: { value: initPositionTex },
+    uOrigPositions: { value: initPositionTex },
+    uTime: { value: 0 },
+    uDelta: { value: 0.016 },
+    uSpring: { value: 0.92 },
+    uCurlScale1: { value: 0.4 },
+    uCurlScale2: { value: 1.0 },
+    uCurlAmp1: { value: 0.14 },
+    uCurlAmp2: { value: 0.065 },
+    uCurlSpeed1: { value: 0.06 },
+    uCurlSpeed2: { value: 0.08 },
+    uLifeSpeed: { value: 0.08 },
+    uLifeVar: { value: 0.04 },
+    uMarbleTex: { value: null },
+    uCamBounds: { value: new THREE.Vector4(-1, 1, -1, 1) }, // left, right, bottom, top
+    uMarbleInfluence: { value: 0.195 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform sampler2D uPositions;
+    uniform sampler2D uOrigPositions;
+    uniform sampler2D uMarbleTex;
+    uniform vec4 uCamBounds; // left, right, bottom, top
+    uniform float uMarbleInfluence;
+    uniform float uTime;
+    uniform float uDelta;
+    uniform float uSpring;
+    uniform float uCurlScale1;
+    uniform float uCurlScale2;
+    uniform float uCurlAmp1;
+    uniform float uCurlAmp2;
+    uniform float uCurlSpeed1;
+    uniform float uCurlSpeed2;
+    uniform float uLifeSpeed;
+    uniform float uLifeVar;
+    varying vec2 vUv;
+    ${NOISE_GLSL}
+
+    // Convert world position to marble texture UV
+    vec2 worldToMarbleUV(vec2 worldPos) {
+      return vec2(
+        (worldPos.x - uCamBounds.x) / (uCamBounds.y - uCamBounds.x),
+        (worldPos.y - uCamBounds.z) / (uCamBounds.w - uCamBounds.z)
+      );
+    }
+
+    // Sample marble gradient — returns direction of increasing brightness
+    vec2 marbleGradient(vec2 worldPos) {
+      vec2 uv = worldToMarbleUV(worldPos);
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(0.0);
+      vec2 texel = vec2(1.0 / 256.0);
+      float l = dot(texture2D(uMarbleTex, uv - vec2(texel.x, 0.0)).rgb, vec3(0.33));
+      float r = dot(texture2D(uMarbleTex, uv + vec2(texel.x, 0.0)).rgb, vec3(0.33));
+      float d = dot(texture2D(uMarbleTex, uv - vec2(0.0, texel.y)).rgb, vec3(0.33));
+      float u = dot(texture2D(uMarbleTex, uv + vec2(0.0, texel.y)).rgb, vec3(0.33));
+      return vec2(r - l, u - d);
+    }
+
+    void main() {
+      vec4 pos = texture2D(uPositions, vUv);
+      vec4 orig = texture2D(uOrigPositions, vUv);
+      vec3 p = pos.xyz;
+      float life = pos.w;
+
+      vec3 noiseOffset = curlNoise(orig.xyz * uCurlScale1 + uTime * uCurlSpeed1) * uCurlAmp1;
+      noiseOffset += curlNoise(orig.xyz * uCurlScale2 + vec3(5.0, 3.0, uTime * uCurlSpeed2)) * uCurlAmp2;
+
+      // Marble flow: use gradient rotated 90° so particles flow ALONG veins, not across them
+      vec2 grad = marbleGradient(orig.xy);
+      vec2 flow = vec2(-grad.y, grad.x); // perpendicular to gradient = along the vein
+      noiseOffset.xy += flow * uMarbleInfluence;
+
+      vec3 target = orig.xyz + noiseOffset;
+      p = mix(p, target, uSpring * uDelta * 10.0);
+
+      life += uDelta * (uLifeSpeed + uLifeVar * snoise(vec3(vUv * 8.0, uTime * 0.3)));
+      if (life > 1.0) {
+        p = orig.xyz;
+        life = 0.0;
+      }
+
+      gl_FragColor = vec4(p, life);
+    }
+  `,
+  depthTest: false,
+  depthWrite: false,
+});
+
+fboScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fboSimMaterial));
+
+// Init FBO
+renderer.setRenderTarget(fboA);
+fboSimMaterial.uniforms.uPositions.value = initPositionTex;
+renderer.render(fboScene, fboCamera);
+renderer.setRenderTarget(null);
+
+// ── Particle Display ──
+const particleScene = new THREE.Scene();
+const aspect = window.innerWidth / window.innerHeight;
+const particleCamera = new THREE.OrthographicCamera(-aspect * 1.5, aspect * 1.5, 1.5, -1.5, 0.1, 100);
+particleCamera.position.z = 3.0;
+
+const references = new Float32Array(PARTICLE_COUNT * 2);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  references[i * 2] = (i % PARTICLE_COUNT_SQRT) / PARTICLE_COUNT_SQRT;
+  references[i * 2 + 1] = Math.floor(i / PARTICLE_COUNT_SQRT) / PARTICLE_COUNT_SQRT;
+}
+
+const sizes = new Float32Array(PARTICLE_COUNT);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  // Mostly tiny sparkle dots, few medium, very few large
+  const r = Math.random();
+  if (r < 0.70)      sizes[i] = Math.random() * 0.3 + 0.08;  // tiny dots
+  else if (r < 0.92) sizes[i] = Math.random() * 0.5 + 0.25;  // small sparkles
+  else                sizes[i] = Math.random() * 0.8 + 0.5;   // medium glow dots
+}
+
+const particleGeometry = new THREE.BufferGeometry();
+particleGeometry.setAttribute('reference', new THREE.BufferAttribute(references, 2));
+particleGeometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+particleGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT * 3), 3));
+
+const particleMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    uPositions: { value: fboA.texture },
+    uTime: { value: 0 },
+    uPixelRatio: { value: renderer.getPixelRatio() },
+    uPtSize: { value: 5.0 },
+    uTwinkle: { value: 3.0 },
+    uAlpha: { value: 0.45 },
+  },
+  vertexShader: /* glsl */ `
+    attribute vec2 reference;
+    attribute float aSize;
+    uniform sampler2D uPositions;
+    uniform float uTime;
+    uniform float uPixelRatio;
+    uniform float uPtSize;
+    uniform float uTwinkle;
+    varying float vLife;
+    varying float vSize;
+
+    void main() {
+      vec4 posData = texture2D(uPositions, reference);
+      vec3 pos = posData.xyz;
+      vLife = posData.w;
+      vSize = aSize;
+
+      vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+      gl_Position = projectionMatrix * mvPosition;
+
+      float twinkle = 0.3 + 0.7 * pow(0.5 + 0.5 * sin(vLife * 15.7 + uTime * uTwinkle + aSize * 25.0), 2.0);
+      float size = aSize * uPtSize * uPixelRatio * twinkle;
+      gl_PointSize = size;
+      gl_PointSize = max(gl_PointSize, 0.8);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform float uAlpha;
+    varying float vLife;
+    varying float vSize;
+
+    void main() {
+      vec2 center = gl_PointCoord - 0.5;
+      float dist = length(center);
+      if (dist > 0.5) discard;
+
+      float core = exp(-dist * dist * 50.0);
+      float mid  = exp(-dist * dist * 12.0);
+      float glow = exp(-dist * dist * 4.0);
+
+      float lifeFade = sin(vLife * 3.14159);
+      lifeFade = pow(max(lifeFade, 0.0), 0.3);
+
+      vec3 coreColor = vec3(0.95, 0.98, 1.0);
+      vec3 midColor  = vec3(0.4, 0.8, 1.0);
+      vec3 glowColor = vec3(0.1, 0.4, 0.8);
+
+      vec3 color = coreColor * core + midColor * mid * 0.5 + glowColor * glow * 0.3;
+      float alpha = (core * 1.0 + mid * 0.5 + glow * 0.2) * lifeFade;
+
+      alpha *= (0.5 + vSize * 0.5);
+
+      gl_FragColor = vec4(color * alpha * 1.2, alpha * uAlpha);
+    }
+  `,
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthTest: false,
+  depthWrite: false,
+});
+
+particleScene.add(new THREE.Points(particleGeometry, particleMaterial));
+
+// ── Bloom Post-Processing ──
+const compositeRT = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat, type: THREE.HalfFloatType,
+});
+
+const bloomDownScale = 2;
+let bloomW = Math.floor(window.innerWidth / bloomDownScale);
+let bloomH = Math.floor(window.innerHeight / bloomDownScale);
+const bloomRTA = new THREE.WebGLRenderTarget(bloomW, bloomH, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+});
+const bloomRTB = new THREE.WebGLRenderTarget(bloomW, bloomH, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+});
+
+// Second bloom level — even wider
+const bloomDownScale2 = 4;
+let bloom2W = Math.floor(window.innerWidth / bloomDownScale2);
+let bloom2H = Math.floor(window.innerHeight / bloomDownScale2);
+const bloom2RTA = new THREE.WebGLRenderTarget(bloom2W, bloom2H, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+});
+const bloom2RTB = new THREE.WebGLRenderTarget(bloom2W, bloom2H, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+});
+
+const bloomScene = new THREE.Scene();
+const bloomCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+const brightPassMaterial = new THREE.ShaderMaterial({
+  uniforms: { tDiffuse: { value: null }, uThreshold: { value: 0.18 } },
+  vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position,1.0);}`,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform sampler2D tDiffuse;
+    uniform float uThreshold;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float br = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      float contrib = smoothstep(uThreshold, uThreshold + 0.15, br);
+      gl_FragColor = vec4(c.rgb * contrib, 1.0);
+    }
+  `,
+});
+
+const blurMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse: { value: null },
+    uDirection: { value: new THREE.Vector2(1.0, 0.0) },
+    uResolution: { value: new THREE.Vector2(bloomW, bloomH) },
+    uSpread: { value: 3.0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position,1.0);}`,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform sampler2D tDiffuse;
+    uniform vec2 uDirection;
+    uniform vec2 uResolution;
+    uniform float uSpread;
+    varying vec2 vUv;
+
+    // Hash for per-pixel jitter to break up grid artifacts
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+
+    void main() {
+      vec2 ts = 1.0 / uResolution;
+      vec4 r = vec4(0.0);
+      // 13-tap gaussian with tweakable spread + jitter
+      float weights[7];
+      weights[0] = 0.159576;
+      weights[1] = 0.147308;
+      weights[2] = 0.115876;
+      weights[3] = 0.077610;
+      weights[4] = 0.044318;
+      weights[5] = 0.021570;
+      weights[6] = 0.008934;
+
+      // Per-pixel random offset (±0.5 texel) to dissolve grid
+      float jitter = (hash(gl_FragCoord.xy) - 0.5) * 1.0;
+
+      r += texture2D(tDiffuse, vUv) * weights[0];
+      for (int i = 1; i < 7; i++) {
+        vec2 off = uDirection * ts * (float(i) * uSpread + jitter);
+        r += texture2D(tDiffuse, vUv + off) * weights[i];
+        r += texture2D(tDiffuse, vUv - off) * weights[i];
+      }
+      gl_FragColor = r;
+    }
+  `,
+});
+
+const compositeMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tScene: { value: null },
+    tBloom: { value: null },
+    tBloom2: { value: null },
+    uBloomStrength: { value: 1.6 },
+    uBloom2Strength: { value: 1.0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position,1.0);}`,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform sampler2D tScene;
+    uniform sampler2D tBloom;
+    uniform sampler2D tBloom2;
+    uniform float uBloomStrength;
+    uniform float uBloom2Strength;
+    varying vec2 vUv;
+    void main() {
+      vec3 s = texture2D(tScene, vUv).rgb;
+      vec3 b1 = texture2D(tBloom, vUv).rgb;
+      vec3 b2 = texture2D(tBloom2, vUv).rgb;
+      vec3 color = s + b1 * uBloomStrength + b2 * uBloom2Strength;
+
+      // Filmic tone mapping
+      color = color / (1.0 + color * 0.4);
+
+      // Push shadows bluer
+      color.b += (1.0 - color.b) * 0.03;
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+});
+
+const bloomQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), brightPassMaterial);
+bloomScene.add(bloomQuad);
+
+// ── Tweak Panel Wiring ──
+const tweakToggle = document.getElementById('tweakToggle');
+const tweakPanel = document.getElementById('tweakPanel');
+let panelOpen = false;
+tweakToggle.addEventListener('click', () => {
+  panelOpen = !panelOpen;
+  tweakPanel.classList.toggle('collapsed', !panelOpen);
+  tweakToggle.textContent = panelOpen ? 'Close' : 'Tweaks';
+});
+
+function bindSlider(id, cb) {
+  const el = document.getElementById('tw-' + id);
+  const valEl = document.getElementById('tv-' + id);
+  el.addEventListener('input', () => {
+    const v = parseFloat(el.value);
+    valEl.textContent = v.toFixed(el.step.includes('.0') && !el.step.includes('.00') ? 1 : el.step.split('.')[1]?.length || 0);
+    cb(v);
+  });
+}
+
+// Particle sim uniforms
+bindSlider('spring', v => fboSimMaterial.uniforms.uSpring.value = v);
+bindSlider('curlScale1', v => fboSimMaterial.uniforms.uCurlScale1.value = v);
+bindSlider('curlScale2', v => fboSimMaterial.uniforms.uCurlScale2.value = v);
+bindSlider('curlAmp1', v => fboSimMaterial.uniforms.uCurlAmp1.value = v);
+bindSlider('curlAmp2', v => fboSimMaterial.uniforms.uCurlAmp2.value = v);
+bindSlider('curlSpeed1', v => fboSimMaterial.uniforms.uCurlSpeed1.value = v);
+bindSlider('curlSpeed2', v => fboSimMaterial.uniforms.uCurlSpeed2.value = v);
+bindSlider('lifeSpeed', v => fboSimMaterial.uniforms.uLifeSpeed.value = v);
+bindSlider('lifeVar', v => fboSimMaterial.uniforms.uLifeVar.value = v);
+bindSlider('marbleFlow', v => fboSimMaterial.uniforms.uMarbleInfluence.value = v);
+
+// Display uniforms
+bindSlider('ptSize', v => particleMaterial.uniforms.uPtSize.value = v);
+bindSlider('twinkle', v => particleMaterial.uniforms.uTwinkle.value = v);
+bindSlider('alpha', v => particleMaterial.uniforms.uAlpha.value = v);
+
+// Marble uniforms
+bindSlider('marbleSpeed', v => marbleUniforms.uMarbleSpeed.value = v);
+bindSlider('warpStr', v => marbleUniforms.uWarpStr.value = v);
+bindSlider('hotGlow', v => marbleUniforms.uHotGlow.value = v);
+
+// Bloom uniforms
+bindSlider('bloomThresh', v => brightPassMaterial.uniforms.uThreshold.value = v);
+bindSlider('bloomStr1', v => compositeMaterial.uniforms.uBloomStrength.value = v);
+bindSlider('bloomStr2', v => compositeMaterial.uniforms.uBloom2Strength.value = v);
+bindSlider('bloomSpread', v => blurMaterial.uniforms.uSpread.value = v);
+
+// ── Save / Load / Reset ──
+const STORAGE_KEY = 'marble-bg-tweaks';
+const allSliderIds = [
+  'spring','curlScale1','curlScale2','curlAmp1','curlAmp2',
+  'curlSpeed1','curlSpeed2','lifeSpeed','lifeVar','marbleFlow',
+  'ptSize','twinkle','alpha',
+  'marbleSpeed','warpStr','hotGlow',
+  'bloomThresh','bloomStr1','bloomStr2','bloomSpread'
+];
+
+function getPreset() {
+  const preset = {};
+  for (const id of allSliderIds) {
+    preset[id] = parseFloat(document.getElementById('tw-' + id).value);
+  }
+  return preset;
+}
+
+function applyPreset(preset) {
+  for (const id of allSliderIds) {
+    if (preset[id] == null) continue;
+    const el = document.getElementById('tw-' + id);
+    el.value = preset[id];
+    el.dispatchEvent(new Event('input'));
+  }
+}
+
+function getDefaults() {
+  const defaults = {};
+  for (const id of allSliderIds) {
+    defaults[id] = parseFloat(document.getElementById('tw-' + id).defaultValue);
+  }
+  return defaults;
+}
+
+document.getElementById('tweakSave').addEventListener('click', () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(getPreset()));
+  document.getElementById('tweakSave').textContent = 'Saved!';
+  setTimeout(() => document.getElementById('tweakSave').textContent = 'Save', 1200);
+});
+
+document.getElementById('tweakLoad').addEventListener('click', () => {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (data) {
+    applyPreset(JSON.parse(data));
+    document.getElementById('tweakLoad').textContent = 'Loaded!';
+  } else {
+    document.getElementById('tweakLoad').textContent = 'No save';
+  }
+  setTimeout(() => document.getElementById('tweakLoad').textContent = 'Load', 1200);
+});
+
+document.getElementById('tweakReset').addEventListener('click', () => {
+  applyPreset(getDefaults());
+});
+
+// Auto-load saved preset on startup
+{
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) applyPreset(JSON.parse(saved));
+}
+
+// ── Visibility-based rendering ──
+let isVisible = !document.hidden;
+document.addEventListener('visibilitychange', () => { isVisible = !document.hidden; });
+
+// ── Animation Loop ──
+let prevTime = performance.now();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!isVisible) return;
+  const now = performance.now();
+  const delta = Math.min((now - prevTime) / 1000, 0.05);
+  prevTime = now;
+  elapsed += delta;
+
+  // Render marble to low-res feedback texture for particle sim
+  renderer.setRenderTarget(marbleFeedbackRT);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+
+  // FBO sim step
+  fboSimMaterial.uniforms.uMarbleTex.value = marbleFeedbackRT.texture;
+  fboSimMaterial.uniforms.uCamBounds.value.set(
+    particleCamera.left, particleCamera.right,
+    particleCamera.bottom, particleCamera.top
+  );
+  fboSimMaterial.uniforms.uPositions.value = fboA.texture;
+  fboSimMaterial.uniforms.uTime.value = elapsed;
+  fboSimMaterial.uniforms.uDelta.value = delta;
+  renderer.setRenderTarget(fboB);
+  renderer.render(fboScene, fboCamera);
+  [fboA, fboB] = [fboB, fboA];
+
+  particleMaterial.uniforms.uPositions.value = fboA.texture;
+  particleMaterial.uniforms.uTime.value = elapsed;
+  marbleUniforms.uTime.value = elapsed;
+
+  // Render scene to composite RT
+  renderer.setRenderTarget(compositeRT);
+  renderer.clear();
+  renderer.render(scene, camera);
+  renderer.render(particleScene, particleCamera);
+
+  // Bloom pass 1 — medium blur
+  bloomQuad.material = brightPassMaterial;
+  brightPassMaterial.uniforms.tDiffuse.value = compositeRT.texture;
+  renderer.setRenderTarget(bloomRTA);
+  renderer.render(bloomScene, bloomCamera);
+
+  bloomQuad.material = blurMaterial;
+  blurMaterial.uniforms.uResolution.value.set(bloomW, bloomH);
+
+  // H blur
+  blurMaterial.uniforms.tDiffuse.value = bloomRTA.texture;
+  blurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+  renderer.setRenderTarget(bloomRTB);
+  renderer.render(bloomScene, bloomCamera);
+  // V blur
+  blurMaterial.uniforms.tDiffuse.value = bloomRTB.texture;
+  blurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+  renderer.setRenderTarget(bloomRTA);
+  renderer.render(bloomScene, bloomCamera);
+  // Second pass
+  blurMaterial.uniforms.tDiffuse.value = bloomRTA.texture;
+  blurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+  renderer.setRenderTarget(bloomRTB);
+  renderer.render(bloomScene, bloomCamera);
+  blurMaterial.uniforms.tDiffuse.value = bloomRTB.texture;
+  blurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+  renderer.setRenderTarget(bloomRTA);
+  renderer.render(bloomScene, bloomCamera);
+  // Third pass — extra smoothing
+  blurMaterial.uniforms.tDiffuse.value = bloomRTA.texture;
+  blurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+  renderer.setRenderTarget(bloomRTB);
+  renderer.render(bloomScene, bloomCamera);
+  blurMaterial.uniforms.tDiffuse.value = bloomRTB.texture;
+  blurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+  renderer.setRenderTarget(bloomRTA);
+  renderer.render(bloomScene, bloomCamera);
+
+  // Bloom pass 2 — wide glow (lower res)
+  bloomQuad.material = brightPassMaterial;
+  brightPassMaterial.uniforms.tDiffuse.value = compositeRT.texture;
+  renderer.setRenderTarget(bloom2RTA);
+  renderer.render(bloomScene, bloomCamera);
+
+  bloomQuad.material = blurMaterial;
+  blurMaterial.uniforms.uResolution.value.set(bloom2W, bloom2H);
+
+  blurMaterial.uniforms.tDiffuse.value = bloom2RTA.texture;
+  blurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+  renderer.setRenderTarget(bloom2RTB);
+  renderer.render(bloomScene, bloomCamera);
+  blurMaterial.uniforms.tDiffuse.value = bloom2RTB.texture;
+  blurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+  renderer.setRenderTarget(bloom2RTA);
+  renderer.render(bloomScene, bloomCamera);
+  blurMaterial.uniforms.tDiffuse.value = bloom2RTA.texture;
+  blurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+  renderer.setRenderTarget(bloom2RTB);
+  renderer.render(bloomScene, bloomCamera);
+  blurMaterial.uniforms.tDiffuse.value = bloom2RTB.texture;
+  blurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+  renderer.setRenderTarget(bloom2RTA);
+  renderer.render(bloomScene, bloomCamera);
+
+  // Final composite
+  bloomQuad.material = compositeMaterial;
+  compositeMaterial.uniforms.tScene.value = compositeRT.texture;
+  compositeMaterial.uniforms.tBloom.value = bloomRTA.texture;
+  compositeMaterial.uniforms.tBloom2.value = bloom2RTA.texture;
+  renderer.setRenderTarget(null);
+  renderer.render(bloomScene, bloomCamera);
+}
+
+// ── Resize ──
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h);
+  marbleUniforms.uResolution.value.set(w, h);
+  const a = w / h;
+  particleCamera.left = -a * 1.5;
+  particleCamera.right = a * 1.5;
+  particleCamera.updateProjectionMatrix();
+  compositeRT.setSize(w, h);
+  bloomW = Math.floor(w / bloomDownScale);
+  bloomH = Math.floor(h / bloomDownScale);
+  bloomRTA.setSize(bloomW, bloomH);
+  bloomRTB.setSize(bloomW, bloomH);
+  bloom2W = Math.floor(w / bloomDownScale2);
+  bloom2H = Math.floor(h / bloomDownScale2);
+  bloom2RTA.setSize(bloom2W, bloom2H);
+  bloom2RTB.setSize(bloom2W, bloom2H);
+});
+
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+/*
+ * Design tokens derived from DESIGN.md
+ * Single source of truth for the BlueBite glassmorphism design system.
+ * Reference these via var(--token-name) throughout the codebase.
+ */
+
+:root {
+  /* -- Fonts -- */
+  --font-heading: "Yeseva One", serif;
+  --font-body: "DM Sans", sans-serif;
+
+  /* -- Background & Surface Colors (blue-tinted for marble bg) -- */
+  --color-void: #050a14;
+  --glass-whisper: rgba(6, 14, 32, 0.65);     /* inner surfaces, cards */
+  --glass-breath: rgba(8, 18, 38, 0.72);      /* main panels */
+  --glass-mist: rgba(10, 22, 44, 0.78);       /* modals, focus surfaces */
+  --glass-fog: rgba(12, 26, 50, 0.84);        /* input fields, hover states */
+
+  /* -- Borders -- */
+  --border-glass: 1px solid rgba(100, 170, 255, 0.28);
+  --border-glass-bright: 1px solid rgba(100, 170, 255, 0.38);
+  --border-glass-input: 1px solid rgba(100, 170, 255, 0.42);
+  --border-color-default: rgba(100, 170, 255, 0.28);
+  --border-color-bright: rgba(100, 170, 255, 0.38);
+  --border-color-hover: rgba(100, 170, 255, 0.55);
+
+  /* -- Blur / Depth -- */
+  --blur-sm: blur(16px);
+  --blur-md: blur(28px);
+  --blur-lg: blur(40px);
+  --blur-xl: blur(48px);
+
+  /* -- Shadows -- */
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(140, 200, 255, 0.08);
+  --shadow-glass-heavy: 0 12px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(140, 200, 255, 0.10);
+  --shadow-glow-blue: 0 0 80px rgba(59, 130, 246, 0.08);
+
+  /* -- Radii (with coordinated padding) -- */
+  --radius-modal: 1.25rem;
+  --radius-card: 0.875rem;
+  --radius-button: 0.625rem;
+  --radius-badge: 0.25rem;
+
+  --padding-modal: 1.5rem;
+  --padding-card: 1rem;
+  --padding-button-x: 1.25rem;
+  --padding-button-y: 0.625rem;
+
+  /* -- Text Opacity Scale -- */
+  --text-primary: rgba(255, 255, 255, 1);
+  --text-secondary: rgba(255, 255, 255, 0.85);
+  --text-body: rgba(255, 255, 255, 0.75);
+  --text-tertiary: rgba(255, 255, 255, 0.60);
+  --text-muted: rgba(255, 255, 255, 0.50);
+  --text-whisper: rgba(255, 255, 255, 0.40);
+
+  /* -- Accent Colors -- */
+  --accent-blue: #3b82f6;
+  --accent-orange: #f97316;
+  --accent-red: rgba(239, 68, 68, 0.8);
+
+  /* -- Transitions -- */
+  --ease-glass: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+}

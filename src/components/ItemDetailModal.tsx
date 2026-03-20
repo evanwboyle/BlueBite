@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
 import { X, Plus, Minus, Trash2 } from 'lucide-react';
+import { GlassPanel } from './ui';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -158,8 +159,10 @@ export function ItemDetailModal({
         style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
         onClick={onClose}
       >
-        <div
-          className="glass-container rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
+        <GlassPanel
+          level="modal"
+          className="max-w-md w-full max-h-[90vh] overflow-y-auto"
+          style={{ padding: 0 }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -180,7 +183,7 @@ export function ItemDetailModal({
           <div className="p-6 space-y-6">
             <div className="space-y-4">
               {/* Available Toggle */}
-              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
+              <GlassPanel level="surface" className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-white">Available</h3>
                   <p className="text-sm text-gray-400">
@@ -199,10 +202,10 @@ export function ItemDetailModal({
                     }`}
                   />
                 </button>
-              </div>
+              </GlassPanel>
 
               {/* Hot Toggle */}
-              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
+              <GlassPanel level="surface" className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-white">Hot Item</h3>
                   <p className="text-sm text-gray-400">Mark as hot food item</p>
@@ -219,7 +222,7 @@ export function ItemDetailModal({
                     }`}
                   />
                 </button>
-              </div>
+              </GlassPanel>
             </div>
           </div>
 
@@ -229,7 +232,7 @@ export function ItemDetailModal({
               Close
             </button>
           </div>
-        </div>
+        </GlassPanel>
       </div>
     );
   }
@@ -242,8 +245,10 @@ export function ItemDetailModal({
         style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
         onClick={onClose}
       >
-        <div
-          className="glass-container rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
+        <GlassPanel
+          level="modal"
+          className="max-w-md w-full max-h-[90vh] overflow-y-auto"
+          style={{ padding: 0 }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -326,7 +331,7 @@ export function ItemDetailModal({
             {/* Toggles */}
             <div className="grid grid-cols-2 gap-4">
               {/* Available Toggle */}
-              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
+              <GlassPanel level="surface" className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-white text-sm">Available</h3>
                   <p className="text-xs text-gray-400">Visible to customers</p>
@@ -343,10 +348,10 @@ export function ItemDetailModal({
                     }`}
                   />
                 </button>
-              </div>
+              </GlassPanel>
 
               {/* Hot Toggle */}
-              <div className="flex items-center justify-between p-4 glass-order-card rounded-lg">
+              <GlassPanel level="surface" className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-white text-sm">Hot Item</h3>
                   <p className="text-xs text-gray-400">Mark as hot food</p>
@@ -363,7 +368,7 @@ export function ItemDetailModal({
                     }`}
                   />
                 </button>
-              </div>
+              </GlassPanel>
             </div>
           </div>
 
@@ -389,7 +394,7 @@ export function ItemDetailModal({
               </button>
             </div>
           </div>
-        </div>
+        </GlassPanel>
       </div>
     );
   }
@@ -405,8 +410,10 @@ export function ItemDetailModal({
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
       onClick={onClose}
     >
-      <div
-        className="glass-container rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
+      <GlassPanel
+        level="modal"
+        className="max-w-md w-full max-h-[90vh] overflow-y-auto"
+        style={{ padding: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Close */}
@@ -503,7 +510,7 @@ export function ItemDetailModal({
             Add to Cart
           </button>
         </div>
-      </div>
+      </GlassPanel>
     </div>
   );
 }

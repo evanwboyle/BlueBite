@@ -157,11 +157,23 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
   };
 
   return (
-    <div className={`${isPopout ? '' : 'glass-container rounded-xl'} h-full w-full flex flex-col relative`}>
+    <div
+      className={`${isPopout ? '' : 'glass-container'} h-full w-full flex flex-col relative`}
+      style={{ borderRadius: 'var(--radius-card)' }}
+    >
       {/* Header */}
-      <div className="glass-header p-5 flex items-center justify-between rounded-t-xl">
-        <h2 className="text-xl font-extrabold text-white tracking-wide">
-          Orders <span className="text-gray-400 font-semibold">({sortedOrders.length}/{ordersWithinPast12h.length})</span>
+      <div
+        className="glass-header p-5 flex items-center justify-between"
+        style={{ borderRadius: 'var(--radius-card) var(--radius-card) 0 0' }}
+      >
+        <h2
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '1.5rem',
+            color: 'var(--text-primary)',
+          }}
+        >
+          Orders <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)', fontSize: '1rem' }}>({sortedOrders.length}/{ordersWithinPast12h.length})</span>
         </h2>
         <div className="flex items-center gap-3">
           <button

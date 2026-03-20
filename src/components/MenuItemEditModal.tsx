@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { MenuItem, Modifier } from '../types';
 import { X, Plus, Trash2, Edit2, Save } from 'lucide-react';
+import { GlassPanel } from './ui';
 
 interface MenuItemEditModalProps {
   item: MenuItem | null; // null = create mode
@@ -189,21 +190,23 @@ export function MenuItemEditModal({
   return (
     <div
       className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      style={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
       onClick={onClose}
     >
-      <div
-        className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl"
+      <GlassPanel
+        level="modal"
+        className="max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        style={{ padding: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Close */}
-        <div className="sticky top-0 flex items-center justify-between p-6 border-b bg-white z-10">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="sticky top-0 glass-header flex items-center justify-between p-6 z-10">
+          <h2 className="text-2xl font-bold text-white">
             {isCreateMode ? 'New Menu Item' : `Edit: ${item.name}`}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
+            className="text-gray-400 hover:text-white transition"
             aria-label="Close"
           >
             <X size={24} />
@@ -214,7 +217,7 @@ export function MenuItemEditModal({
         <div className="p-6 space-y-6">
           {/* Image URL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Image URL (Optional)
             </label>
             <input
@@ -222,10 +225,10 @@ export function MenuItemEditModal({
               value={image}
               onChange={(e) => setImage(e.target.value)}
               placeholder="https://example.com/image.jpg"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {image && (
-              <div className="mt-3 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg overflow-hidden">
+              <div className="mt-3 h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg overflow-hidden border border-white/10">
                 <img
                   src={image}
                   alt="Preview"
@@ -241,8 +244,8 @@ export function MenuItemEditModal({
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Name <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -252,16 +255,16 @@ export function MenuItemEditModal({
                 if (errors.name) setErrors({ ...errors, name: undefined });
               }}
               placeholder="Item name"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.name ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-4 py-2 bg-white/5 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                errors.name ? 'border-red-500' : 'border-white/10'
               }`}
             />
-            {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
+            {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name}</p>}
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Description (Optional)
             </label>
             <textarea
@@ -269,18 +272,18 @@ export function MenuItemEditModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Item description"
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
 
           {/* Price and Category Row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Price <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Price <span className="text-red-400">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
                 <input
                   type="number"
                   step="0.01"
@@ -291,17 +294,17 @@ export function MenuItemEditModal({
                     if (errors.price) setErrors({ ...errors, price: undefined });
                   }}
                   placeholder="0.00"
-                  className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.price ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full pl-8 pr-4 py-2 bg-white/5 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.price ? 'border-red-500' : 'border-white/10'
                   }`}
                 />
               </div>
-              {errors.price && <p className="mt-1 text-sm text-red-500">{errors.price}</p>}
+              {errors.price && <p className="mt-1 text-sm text-red-400">{errors.price}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Category <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Category <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -311,11 +314,11 @@ export function MenuItemEditModal({
                   if (errors.category) setErrors({ ...errors, category: undefined });
                 }}
                 placeholder="e.g., Snacks, Drinks"
-                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.category ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-4 py-2 bg-white/5 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.category ? 'border-red-500' : 'border-white/10'
                 }`}
               />
-              {errors.category && <p className="mt-1 text-sm text-red-500">{errors.category}</p>}
+              {errors.category && <p className="mt-1 text-sm text-red-400">{errors.category}</p>}
             </div>
           </div>
 
@@ -328,9 +331,9 @@ export function MenuItemEditModal({
                 onChange={(e) => setHot(e.target.checked)}
                 className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
               />
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-gray-300">
                 Hot Item{' '}
-                <span className="inline-block text-xs bg-red-100 text-red-700 rounded px-2 py-1 ml-1">
+                <span className="inline-block text-xs bg-red-500/20 text-red-400 rounded px-2 py-1 ml-1 border border-red-500/30">
                   Hot
                 </span>
               </span>
@@ -343,19 +346,19 @@ export function MenuItemEditModal({
                 onChange={(e) => setDisabled(!e.target.checked)}
                 className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
               />
-              <span className="text-sm font-medium text-gray-700">Available</span>
+              <span className="text-sm font-medium text-gray-300">Available</span>
             </label>
           </div>
 
           {/* Buttery Dropdown */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Buttery (Optional)
             </label>
             <select
               value={buttery}
               onChange={(e) => setButtery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">None</option>
               {butteryOptions.map((option) => (
@@ -367,12 +370,12 @@ export function MenuItemEditModal({
           </div>
 
           {/* Modifiers Section */}
-          <div className="border-t pt-6">
+          <div className="border-t border-white/10 pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Modifiers</h3>
+              <h3 className="text-lg font-semibold text-white">Modifiers</h3>
               <button
                 onClick={handleAddModifier}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                className="glass-button-primary flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium"
               >
                 <Plus size={16} />
                 Add Modifier
@@ -386,9 +389,9 @@ export function MenuItemEditModal({
             ) : (
               <div className="space-y-3">
                 {modifiers.map((modifier) => (
-                  <div
+                  <GlassPanel
                     key={modifier.id}
-                    className="p-4 border border-gray-200 rounded-lg bg-gray-50"
+                    level="surface"
                   >
                     {editingModifierId === modifier.id ? (
                       // Edit Mode
@@ -399,7 +402,7 @@ export function MenuItemEditModal({
                             value={editingModifierName}
                             onChange={(e) => setEditingModifierName(e.target.value)}
                             placeholder="Modifier name"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           />
                         </div>
                         <div>
@@ -408,12 +411,12 @@ export function MenuItemEditModal({
                             onChange={(e) => setEditingModifierDescription(e.target.value)}
                             placeholder="Description (optional)"
                             rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
                           />
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="flex-1 relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
                               $
                             </span>
                             <input
@@ -423,19 +426,19 @@ export function MenuItemEditModal({
                               value={editingModifierPrice}
                               onChange={(e) => setEditingModifierPrice(e.target.value)}
                               placeholder="0.00"
-                              className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                              className="w-full pl-7 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             />
                           </div>
                           <button
                             onClick={handleSaveModifier}
-                            className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
+                            className="flex items-center gap-1 px-3 py-2 bg-green-600/30 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-600/40 transition text-sm font-medium"
                           >
                             <Save size={14} />
                             Save
                           </button>
                           <button
                             onClick={handleCancelEditModifier}
-                            className="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition text-sm font-medium"
+                            className="glass-button px-3 py-2 rounded-lg text-sm font-medium"
                           >
                             Cancel
                           </button>
@@ -445,25 +448,25 @@ export function MenuItemEditModal({
                       // View Mode
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900">{modifier.name}</p>
+                          <p className="font-medium text-white">{modifier.name}</p>
                           {modifier.description && (
-                            <p className="text-sm text-gray-600 mt-1">{modifier.description}</p>
+                            <p className="text-sm text-gray-400 mt-1">{modifier.description}</p>
                           )}
-                          <p className="text-blue-600 font-semibold mt-1">
+                          <p className="text-blue-400 font-semibold mt-1">
                             +${modifier.price.toFixed(2)}
                           </p>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
                           <button
                             onClick={() => handleStartEditModifier(modifier)}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2 rounded transition"
+                            className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 p-2 rounded transition"
                             aria-label="Edit modifier"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button
                             onClick={() => handleDeleteModifier(modifier.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition"
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded transition"
                             aria-label="Delete modifier"
                           >
                             <Trash2 size={16} />
@@ -471,7 +474,7 @@ export function MenuItemEditModal({
                         </div>
                       </div>
                     )}
-                  </div>
+                  </GlassPanel>
                 ))}
               </div>
             )}
@@ -479,7 +482,7 @@ export function MenuItemEditModal({
         </div>
 
         {/* Footer with Action Buttons */}
-        <div className="sticky bottom-0 border-t p-6 bg-gray-50 flex items-center justify-between gap-4">
+        <div className="sticky bottom-0 glass-header p-6 flex items-center justify-between gap-4">
           <div className="flex gap-3">
             {!isCreateMode && onDelete && (
               <>
@@ -487,13 +490,13 @@ export function MenuItemEditModal({
                   <div className="flex gap-2">
                     <button
                       onClick={handleDelete}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+                      className="px-4 py-2 bg-red-500/30 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/40 transition font-medium"
                     >
                       Confirm Delete
                     </button>
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-medium"
+                      className="glass-button px-4 py-2 rounded-lg font-medium"
                     >
                       Cancel
                     </button>
@@ -501,7 +504,7 @@ export function MenuItemEditModal({
                 ) : (
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-red-500/30 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/40 transition font-medium"
                   >
                     <Trash2 size={18} />
                     Delete
@@ -514,19 +517,19 @@ export function MenuItemEditModal({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-medium"
+              className="glass-button px-6 py-2 rounded-lg font-medium"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              className="glass-button-primary px-6 py-2 rounded-lg font-medium"
             >
               {isCreateMode ? 'Create' : 'Save Changes'}
             </button>
           </div>
         </div>
-      </div>
+      </GlassPanel>
     </div>
   );
 }

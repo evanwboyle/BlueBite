@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { OrderItem } from '../types';
 import { X, Trash2, ShoppingCart } from 'lucide-react';
 import { calculateCartTotal } from '../utils/cart';
+import { GlassPanel } from './ui';
 
 interface CartModalProps {
   items: OrderItem[];
@@ -31,7 +32,7 @@ export function CartModal({
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }} onClick={onClose}>
-      <div className="glass-container rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <GlassPanel level="modal" className="max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ padding: 0 }} onClick={(e) => e.stopPropagation()}>
         {/* Header with Close */}
         <div className="sticky top-0 glass-header flex items-center justify-between p-6 border-b border-white/10">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -127,7 +128,7 @@ export function CartModal({
             </button>
           </div>
         )}
-      </div>
+      </GlassPanel>
     </div>
   );
 }

@@ -47,6 +47,13 @@ BlueBite is a **full-stack React 19 web application** for a Yale Buttery orderin
 BlueBite/
 ├── src/                         # Frontend source (React application)
 │   ├── components/              # React components
+│   │   ├── ui/                  # Reusable UI primitives (see ui/README.md)
+│   │   │   ├── GlassPanel.tsx   # Glass container with coordinated radius/padding
+│   │   │   ├── GlassButton.tsx  # Button with CSS hover states (4 variants)
+│   │   │   ├── GlassButton.css  # Button hover/focus styles
+│   │   │   ├── Text.tsx         # Typography (6 variants, enforces font rules)
+│   │   │   ├── GlassDivider.tsx # Luminous horizontal separator
+│   │   │   └── index.ts        # Barrel export
 │   │   ├── Header.tsx           # Top navigation
 │   │   ├── MenuGrid.tsx         # Menu item display
 │   │   ├── ItemDetailModal.tsx  # Item details & modifiers
@@ -54,6 +61,8 @@ BlueBite/
 │   │   ├── CartModal.tsx        # Shopping cart & checkout
 │   │   ├── CartPanel.tsx        # Cart summary
 │   │   └── OrderManager.tsx     # Order tracking & management
+│   ├── styles/
+│   │   └── tokens.css           # CSS custom properties (design tokens from DESIGN.md)
 │   ├── utils/
 │   │   ├── storage.ts           # localStorage cache abstraction with buttery-aware caching
 │   │   └── mockData.ts          # Development seed data
@@ -158,6 +167,24 @@ All endpoints are defined in `backend/src/index.ts`:
 - **Responsive design** with mobile-first approach
 - **PostCSS** with autoprefixer for browser compatibility
 - **Babel React Compiler** enabled for performance optimization
+
+### UI Component Library (`src/components/ui/`)
+
+Reusable primitives that encode the DESIGN.md glassmorphism rules. **Always use these instead of inline styles for glass effects, typography, and buttons.** Full docs in `src/components/ui/README.md`.
+
+- **`<GlassPanel level="modal|card|surface">`** — Glass container with coordinated border-radius and padding (content never clips corners). Use `modal` for top-level panels, `card` for content containers, `surface` for nested inner sections.
+- **`<GlassButton variant="default|primary|accent|ghost">`** — Button with hover states in CSS, not JS event handlers.
+- **`<Text variant="brand|heading|title|body|label|whisper">`** — Typography enforcing Yeseva One (headings) / DM Sans (body) and the white opacity scale.
+- **`<GlassDivider>`** — 1px luminous separator.
+
+### Design Tokens (`src/styles/tokens.css`)
+
+All glassmorphism values (colors, blur, radii, shadows, text opacity) are CSS custom properties. Use `var(--token-name)` instead of hardcoded `rgba(...)` values. Key tokens:
+- `--glass-whisper` through `--glass-fog` — surface backgrounds
+- `--blur-sm` through `--blur-xl` — backdrop filter intensities
+- `--radius-modal`, `--radius-card`, `--radius-button` — corner rounding (coordinated with `--padding-*`)
+- `--text-primary` through `--text-whisper` — white opacity text scale
+- `--font-heading` (Yeseva One), `--font-body` (DM Sans)
 
 ## TypeScript Configuration
 

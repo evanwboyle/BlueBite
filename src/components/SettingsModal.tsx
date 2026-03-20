@@ -1,6 +1,7 @@
 import { X, Settings, LogOut } from 'lucide-react';
 import { API_BASE_URL } from '../utils/config';
 import type { User } from '../types';
+import { GlassPanel } from './ui';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export function SettingsModal({
 
   return (
     <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }} onClick={onClose}>
-      <div className="glass-container rounded-lg max-w-2xl w-full max-h-[95vh] shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <GlassPanel level="modal" className="max-w-2xl w-full max-h-[95vh] flex flex-col" style={{ padding: 0 }} onClick={(e) => e.stopPropagation()}>
         {/* Header with Close */}
         <div className="sticky top-0 flex items-center justify-between p-6 glass-header z-10">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -129,7 +130,7 @@ export function SettingsModal({
 
           </div>
         </div>
-      </div>
+      </GlassPanel>
     </div>
   );
 }

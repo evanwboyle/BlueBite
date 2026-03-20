@@ -6,6 +6,7 @@ import { CartModal } from './components/CartModal';
 import { SettingsModal } from './components/SettingsModal';
 import { OrderManager } from './components/OrderManager';
 import { LoginPage } from './components/LoginPage';
+import { ButterySelectionPage } from './components/ButterySelectionPage';
 import { storage } from './utils/storage';
 import { api } from './utils/api';
 import { API_BASE_URL } from './utils/config';
@@ -15,6 +16,13 @@ import { optimisticUpdate } from './utils/optimistic';
 import { connectSSE } from './utils/sse';
 import type { SSEEventType } from './utils/sse';
 import { Bell } from 'lucide-react';
+const MarbleBackground = () => (
+  <iframe
+    src="/marble-bg.html"
+    style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none', zIndex: 0, pointerEvents: 'none' }}
+    title="background"
+  />
+);
 
 function App() {
   // Detect if this is a popout view (menu-only or orders-only)
@@ -327,13 +335,13 @@ function App() {
     optimisticUpdate.execute({
       // 1. Apply optimistic update immediately - UI updates instantly
       optimisticUpdate: () => {
-        const newMenuItems = menuItems.map(item =>
-          item.id === itemId ? { ...item, ...updates } : item
-        );
-        setMenuItems(newMenuItems);
-
-        // Update cache with optimistic state
-        storage.setCachedMenu(newMenuItems, selectedButtery);
+        setMenuItems(prev => {
+          const newMenuItems = prev.map(item =>
+            item.id === itemId ? { ...item, ...updates } : item
+          );
+          storage.setCachedMenu(newMenuItems, selectedButtery);
+          return newMenuItems;
+        });
 
         setNotification('Menu item updated!');
         setTimeout(() => setNotification(null), 2000);
@@ -360,11 +368,13 @@ function App() {
 
       // 3. On success - verify server state matches optimistic state
       onSuccess: (updatedItem) => {
-        const newMenuItems = menuItems.map(item =>
-          item.id === itemId ? updatedItem : item
-        );
-        setMenuItems(newMenuItems);
-        storage.setCachedMenu(newMenuItems, selectedButtery);
+        setMenuItems(prev => {
+          const newMenuItems = prev.map(item =>
+            item.id === itemId ? updatedItem : item
+          );
+          storage.setCachedMenu(newMenuItems, selectedButtery);
+          return newMenuItems;
+        });
       },
 
       // 4. On error (after all 3 retries exhausted) - show warning and restore item
@@ -375,11 +385,13 @@ function App() {
 
         // Restore the original item if we still have a reference
         if (originalItem) {
-          const restoredMenuItems = menuItems.map(item =>
-            item.id === itemId ? originalItem : item
-          );
-          setMenuItems(restoredMenuItems);
-          storage.setCachedMenu(restoredMenuItems, selectedButtery);
+          setMenuItems(prev => {
+            const restoredMenuItems = prev.map(item =>
+              item.id === itemId ? originalItem : item
+            );
+            storage.setCachedMenu(restoredMenuItems, selectedButtery);
+            return restoredMenuItems;
+          });
         }
       },
 
@@ -397,11 +409,11 @@ function App() {
     optimisticUpdate.execute({
       // 1. Apply optimistic update immediately - UI updates instantly
       optimisticUpdate: () => {
-        const newMenuItems = [...menuItems, tempItem];
-        setMenuItems(newMenuItems);
-
-        // Update cache with optimistic state
-        storage.setCachedMenu(newMenuItems, selectedButtery);
+        setMenuItems(prev => {
+          const newMenuItems = [...prev, tempItem];
+          storage.setCachedMenu(newMenuItems, selectedButtery);
+          return newMenuItems;
+        });
 
         setNotification('Menu item created!');
         setTimeout(() => setNotification(null), 2000);
@@ -412,13 +424,12 @@ function App() {
 
       // 3. On success - replace temp item with server item (has real ID)
       onSuccess: (createdItem) => {
-        const newMenuItems = menuItems.map(i =>
-          i.id === tempId ? createdItem : i
-        ).filter(i => i.id !== tempId);
-        newMenuItems.push(createdItem);
-
-        setMenuItems(newMenuItems);
-        storage.setCachedMenu(newMenuItems, selectedButtery);
+        setMenuItems(prev => {
+          const newMenuItems = prev.filter(i => i.id !== tempId);
+          newMenuItems.push(createdItem);
+          storage.setCachedMenu(newMenuItems, selectedButtery);
+          return newMenuItems;
+        });
       },
 
       // 4. On error (after all 3 retries exhausted) - show warning and remove temp item
@@ -428,9 +439,11 @@ function App() {
         setTimeout(() => setNotification(null), 5000);
 
         // Remove the temporary item
-        const restoredMenuItems = menuItems.filter(item => item.id !== tempId);
-        setMenuItems(restoredMenuItems);
-        storage.setCachedMenu(restoredMenuItems, selectedButtery);
+        setMenuItems(prev => {
+          const restoredMenuItems = prev.filter(item => item.id !== tempId);
+          storage.setCachedMenu(restoredMenuItems, selectedButtery);
+          return restoredMenuItems;
+        });
       },
 
       // 5. Unique ID for this update
@@ -446,11 +459,11 @@ function App() {
     optimisticUpdate.execute({
       // 1. Apply optimistic update immediately - UI updates instantly
       optimisticUpdate: () => {
-        const newMenuItems = menuItems.filter(item => item.id !== itemId);
-        setMenuItems(newMenuItems);
-
-        // Update cache with optimistic state
-        storage.setCachedMenu(newMenuItems, selectedButtery);
+        setMenuItems(prev => {
+          const newMenuItems = prev.filter(item => item.id !== itemId);
+          storage.setCachedMenu(newMenuItems, selectedButtery);
+          return newMenuItems;
+        });
 
         setNotification('Menu item deleted!');
         setTimeout(() => setNotification(null), 2000);
@@ -472,9 +485,11 @@ function App() {
 
         // Restore the deleted item if we still have a reference
         if (deletedItem) {
-          const restoredMenuItems = [...menuItems, deletedItem];
-          setMenuItems(restoredMenuItems);
-          storage.setCachedMenu(restoredMenuItems, selectedButtery);
+          setMenuItems(prev => {
+            const restoredMenuItems = [...prev, deletedItem];
+            storage.setCachedMenu(restoredMenuItems, selectedButtery);
+            return restoredMenuItems;
+          });
         }
       },
 
@@ -500,18 +515,18 @@ function App() {
     return null;
   }
 
-  // Gate: must be logged in and have a buttery selected
-  if (!currentUser || (!selectedButtery && !isPopout)) {
+  // Gate: must be logged in
+  if (!currentUser) {
+    return <LoginPage />;
+  }
+
+  // Gate: must have a buttery selected (unless popout)
+  if (!selectedButtery && !isPopout) {
     return (
-      <LoginPage
+      <ButterySelectionPage
         currentUser={currentUser}
         butteryOptions={butteryOptions}
         onSelectButtery={(buttery) => handleButteryChange(buttery)}
-        onUserLogout={() => {
-          setCurrentUser(null);
-          setSelectedButtery(null);
-          storage.setSelectedButtery(null);
-        }}
       />
     );
   }
@@ -519,118 +534,11 @@ function App() {
   // Popout view for menu only
   if (popoutView === 'menu') {
     return (
-      <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-        <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
-
-        {/* Notification Overlay */}
-        {notification && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
-            <div className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto">
-              <Bell size={18} />
-              {notification}
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 flex overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(25, 30, 40, 0.75) 100%)' }}>
-          <MenuGrid
-            items={menuItems}
-            onAddToCart={handleAddToCart}
-            cartCount={cartItems.length}
-            onCartClick={() => setIsCartOpen(true)}
-            isEditMode={isEditMode}
-            currentUser={currentUser}
-            onUpdateMenuItem={handleUpdateMenuItem}
-            onCreateMenuItem={handleCreateMenuItem}
-            onDeleteMenuItem={handleDeleteMenuItem}
-          />
-        </div>
-
-        {isCartOpen && (
-          <CartModal
-            items={cartItems}
-            onClose={() => setIsCartOpen(false)}
-            onRemoveItem={handleRemoveFromCart}
-            onCheckout={handleCheckout}
-          />
-        )}
-
-        {isSettingsOpen && (
-          <SettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-            currentUser={currentUser}
-            onUserLogout={() => {
-              setCurrentUser(null);
-              setSelectedButtery(null);
-              storage.setSelectedButtery(null);
-            }}
-            isEditMode={isEditMode}
-            onToggleEditMode={(enabled) => setIsEditMode(enabled)}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Popout view for orders only
-  if (popoutView === 'orders') {
-    return (
-      <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-        <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
-
-        {/* Notification Overlay */}
-        {notification && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
-            <div className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto">
-              <Bell size={18} />
-              {notification}
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 flex overflow-hidden">
-          <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} isPopout={true} />
-        </div>
-
-        {isSettingsOpen && (
-          <SettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-            currentUser={currentUser}
-            onUserLogout={() => {
-              setCurrentUser(null);
-              setSelectedButtery(null);
-              storage.setSelectedButtery(null);
-            }}
-            isEditMode={isEditMode}
-            onToggleEditMode={(enabled) => setIsEditMode(enabled)}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Normal dual-panel view
-  return (
-    <div className="h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.98) 0%, rgba(25, 30, 40, 0.95) 100%)' }}>
-      <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
-
-      {/* Notification Overlay */}
-      {notification && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
-          <div className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto">
-            <Bell size={18} />
-            {notification}
-          </div>
-        </div>
-      )}
-
-      {/* Main Layout with Resizable Divider */}
-      <div className="flex-1 flex overflow-hidden gap-1 p-1">
-        {/* Left Panel - Ordering */}
-        <div style={{ flex: `0 0 ${leftPanelWidth}%` }} className="flex flex-col min-w-0">
-          <div className="flex-1 flex flex-col overflow-hidden rounded-lg shadow-xl" style={{ background: 'linear-gradient(135deg, rgba(15, 20, 25, 0.8) 0%, rgba(25, 30, 40, 0.75) 100%)' }}>
+      <div className="relative h-screen w-full overflow-hidden">
+        <MarbleBackground />
+        <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} onCartClick={() => setIsCartOpen(true)} cartCount={cartItems.length} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <div className="flex-1 overflow-hidden glass-container" style={{ borderRadius: 'var(--radius-card)' }}>
             <MenuGrid
               items={menuItems}
               onAddToCart={handleAddToCart}
@@ -645,36 +553,134 @@ function App() {
           </div>
         </div>
 
-        {/* Resizable Divider */}
-        <div
-          onMouseDown={(e) => {
-            e.preventDefault();
-            const startX = e.clientX;
-            const startWidth = leftPanelWidth;
-            const container = (e.currentTarget.parentElement as HTMLElement);
-            const containerWidth = container.clientWidth;
+        {isCartOpen && (
+          <CartModal items={cartItems} onClose={() => setIsCartOpen(false)} onRemoveItem={handleRemoveFromCart} onCheckout={handleCheckout} />
+        )}
+        {isSettingsOpen && (
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} />
+        )}
+      </div>
+    );
+  }
 
-            const handleMouseMove = (moveEvent: MouseEvent) => {
-              const deltaX = moveEvent.clientX - startX;
-              const deltaPercent = (deltaX / containerWidth) * 100;
-              const newWidth = Math.max(20, Math.min(80, startWidth + deltaPercent));
-              setLeftPanelWidth(newWidth);
-            };
+  // Popout view for orders only
+  if (popoutView === 'orders') {
+    return (
+      <div className="relative h-screen w-full overflow-hidden">
+        <MarbleBackground />
+        <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <div className="flex-1 overflow-hidden">
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} isPopout={true} />
+          </div>
+        </div>
 
-            const handleMouseUp = () => {
-              document.removeEventListener('mousemove', handleMouseMove);
-              document.removeEventListener('mouseup', handleMouseUp);
-            };
+        {isSettingsOpen && (
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} />
+        )}
+      </div>
+    );
+  }
 
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-          }}
-          className="w-3 bg-gradient-to-b from-blue-500/40 via-blue-400/30 to-blue-500/40 hover:from-blue-400/60 hover:via-blue-300/50 hover:to-blue-400/60 cursor-col-resize transition-all duration-200 flex-shrink-0 shadow-lg"
+  // Normal dual-panel view
+  return (
+    <div className="relative h-screen w-full overflow-hidden">
+      {/* Marble background */}
+      <MarbleBackground />
+
+      {/* Content layer */}
+      <div className="relative h-full flex flex-col p-4 gap-3" style={{ zIndex: 10 }}>
+        {/* Glass Header */}
+        <Header
+          onSettingsClick={() => setIsSettingsOpen(true)}
+          onCartClick={() => setIsCartOpen(true)}
+          cartCount={cartItems.length}
+          currentUser={currentUser}
+          selectedButtery={selectedButtery}
         />
 
-        {/* Right Side - Order Manager */}
-        <div style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 20px)` }} className="flex flex-col min-w-0 overflow-hidden">
-          <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
+        {/* Notification Overlay */}
+        {notification && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn pointer-events-none">
+            <div
+              className="px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto"
+              style={{
+                background: 'var(--glass-fog)',
+                backdropFilter: 'var(--blur-lg)',
+                border: 'var(--border-glass-bright)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <Bell size={18} />
+              {notification}
+            </div>
+          </div>
+        )}
+
+        {/* Main Layout with Resizable Divider */}
+        <div className="flex-1 flex overflow-hidden gap-3 min-h-0">
+          {/* Left Panel - Menu */}
+          <div
+            style={{ flex: `0 0 ${leftPanelWidth}%` }}
+            className="flex flex-col min-w-0"
+          >
+            <div
+              className="glass-container flex-1 flex flex-col overflow-hidden"
+              style={{ borderRadius: 'var(--radius-card)' }}
+            >
+              <MenuGrid
+                items={menuItems}
+                onAddToCart={handleAddToCart}
+                cartCount={cartItems.length}
+                onCartClick={() => setIsCartOpen(true)}
+                isEditMode={isEditMode}
+                currentUser={currentUser}
+                onUpdateMenuItem={handleUpdateMenuItem}
+                onCreateMenuItem={handleCreateMenuItem}
+                onDeleteMenuItem={handleDeleteMenuItem}
+              />
+            </div>
+          </div>
+
+          {/* Resizable Divider */}
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = leftPanelWidth;
+              const container = (e.currentTarget.parentElement as HTMLElement);
+              const containerWidth = container.clientWidth;
+
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+                const deltaPercent = (deltaX / containerWidth) * 100;
+                const newWidth = Math.max(20, Math.min(80, startWidth + deltaPercent));
+                setLeftPanelWidth(newWidth);
+              };
+
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+            className="w-1.5 cursor-col-resize flex-shrink-0 rounded-full transition-colors duration-200"
+            style={{
+              background: 'rgba(120, 180, 255, 0.15)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(120, 180, 255, 0.35)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(120, 180, 255, 0.15)')}
+          />
+
+          {/* Right Panel - Orders */}
+          <div
+            style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 18px)` }}
+            className="flex flex-col min-w-0 overflow-hidden"
+          >
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
+          </div>
         </div>
       </div>
 

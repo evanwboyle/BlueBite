@@ -1,0 +1,65 @@
+/* GlassButton — all hover/focus handled in CSS, not JS event handlers */
+
+.glass-btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-button);
+  padding: var(--padding-button-y) var(--padding-button-x);
+  background: var(--glass-breath);
+  border: 1px solid var(--border-color-default);
+  color: var(--text-primary);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  transition: all var(--duration-normal) var(--ease-glass);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.glass-btn:hover {
+  background: var(--glass-fog);
+  border-color: var(--border-color-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Primary: aqua-to-white gradient (login CTA) */
+.glass-btn--primary {
+  background: linear-gradient(135deg, rgba(100, 180, 255, 0.9), rgba(255, 255, 255, 0.85));
+  color: #0a0a0a;
+  border: none;
+}
+
+.glass-btn--primary:hover {
+  box-shadow: 0 4px 20px rgba(100, 180, 255, 0.4);
+}
+
+/* Accent: BlueBite blue gradient */
+.glass-btn--accent {
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.3), rgba(0, 61, 179, 0.3));
+  border: 1px solid rgba(0, 102, 255, 0.5);
+  color: #60a5fa;
+  box-shadow: 0 0 15px rgba(0, 102, 255, 0.2);
+}
+
+.glass-btn--accent:hover {
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.4), rgba(0, 61, 179, 0.4));
+  box-shadow: 0 0 25px rgba(0, 102, 255, 0.3);
+}
+
+/* Ghost: invisible until hovered */
+.glass-btn--ghost {
+  background: transparent;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  color: var(--text-whisper);
+  font-weight: 400;
+}
+
+.glass-btn--ghost:hover {
+  color: #f87171;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+}

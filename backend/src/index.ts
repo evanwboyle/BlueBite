@@ -2,6 +2,7 @@ import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import session from "express-session";
+import path from "path";
 import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
@@ -648,6 +649,20 @@ app.delete("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin,
   } catch (error) {
     console.error('Delete modifier error:', error);
     res.status(500).json({ error: 'Failed to delete modifier' });
+  }
+});
+
+// Preview routes for design mockups
+app.get("/preview", (req: Request, res: Response) => {
+  const view = req.query.view as string;
+  const viewMap: Record<string, string> = {
+    marble: "marble-bg.html",
+  };
+  const file = viewMap[view];
+  if (file) {
+    res.sendFile(path.resolve(__dirname, "../../public", file));
+  } else {
+    res.status(404).send("Preview not found. Available views: " + Object.keys(viewMap).join(", "));
   }
 });
 
