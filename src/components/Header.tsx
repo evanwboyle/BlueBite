@@ -1,11 +1,10 @@
-import { Settings, ShoppingCart, Maximize2, Minimize2 } from 'lucide-react';
+import { Settings, Maximize2, Minimize2 } from 'lucide-react';
 import { useState } from 'react';
 import type { User } from '../types';
+import { GlassPanel } from './ui';
 
 interface HeaderProps {
   onSettingsClick: () => void;
-  onCartClick?: () => void;
-  cartCount?: number;
   currentUser?: User | null;
   selectedButtery?: string | null;
 }
@@ -23,7 +22,7 @@ function getRoleLabel(role?: string): string {
   }
 }
 
-export function Header({ onSettingsClick, onCartClick, cartCount = 0, currentUser, selectedButtery }: HeaderProps) {
+export function Header({ onSettingsClick, currentUser, selectedButtery }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const handleFullscreenToggle = async () => {
@@ -41,17 +40,17 @@ export function Header({ onSettingsClick, onCartClick, cartCount = 0, currentUse
   };
 
   return (
-    <header
-      className="glass-container flex items-center justify-between px-6 py-4"
-      style={{
-        borderRadius: 'var(--radius-card)',
-      }}
+    <GlassPanel
+      level="modal"
+      as="div"
+      className="flex items-center justify-between"
+      style={{ padding: '16px 24px' }}
     >
       <div className="flex items-center gap-3">
         <h1
           style={{
             fontFamily: 'var(--font-heading)',
-            fontSize: '1.75rem',
+            fontSize: '2rem',
             color: 'var(--text-primary)',
             letterSpacing: '-0.01em',
           }}
@@ -101,20 +100,6 @@ export function Header({ onSettingsClick, onCartClick, cartCount = 0, currentUse
         >
           <Settings size={18} />
         </button>
-        {onCartClick && (
-          <button
-            onClick={onCartClick}
-            className="glass-button px-3 py-2 rounded-lg transition relative"
-            title="Cart"
-          >
-            <ShoppingCart size={18} />
-            {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </button>
-        )}
         <button
           onClick={handleFullscreenToggle}
           className="glass-button px-3 py-2 rounded-lg transition"
@@ -123,6 +108,6 @@ export function Header({ onSettingsClick, onCartClick, cartCount = 0, currentUse
           {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
         </button>
       </div>
-    </header>
+    </GlassPanel>
   );
 }

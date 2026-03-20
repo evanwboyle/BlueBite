@@ -71,7 +71,7 @@
     <summary>Marble BG</summary>
     <div class="tweak-row"><label>Speed</label><input type="range" id="tw-marbleSpeed" min="0" max="0.15" step="0.005" value="0.025"><span class="tweak-val" id="tv-marbleSpeed">0.025</span></div>
     <div class="tweak-row"><label>Warp Strength</label><input type="range" id="tw-warpStr" min="0" max="8" step="0.5" value="2.0"><span class="tweak-val" id="tv-warpStr">2.0</span></div>
-    <div class="tweak-row"><label>Hotspot Glow</label><input type="range" id="tw-hotGlow" min="0" max="1" step="0.05" value="0.35"><span class="tweak-val" id="tv-hotGlow">0.35</span></div>
+    <div class="tweak-row"><label>Hotspot Glow</label><input type="range" id="tw-hotGlow" min="0" max="1" step="0.05" value="0.15"><span class="tweak-val" id="tv-hotGlow">0.15</span></div>
   </details>
 
   <details class="tweak-section" open>
@@ -99,6 +99,11 @@
 
 <script type="module">
 import * as THREE from 'three';
+
+// ── Query params for performance tuning ──
+const _params = new URLSearchParams(window.location.search);
+const BLUR_RADIUS = parseFloat(_params.get('blur') || '0');
+const SLOW_FACTOR = parseFloat(_params.get('slow') || '1');
 
 const NOISE_GLSL = /* glsl */ `
 vec4 permute(vec4 x){ return mod(((x*34.0)+1.0)*x, 289.0); }
@@ -178,7 +183,7 @@ const marbleUniforms = {
   uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
   uMarbleSpeed: { value: 0.025 },
   uWarpStr: { value: 2.0 },
-  uHotGlow: { value: 0.35 },
+  uHotGlow: { value: 0.15 },
 };
 
 const marbleMaterial = new THREE.ShaderMaterial({
@@ -979,6 +984,54 @@ document.getElementById('tweakReset').addEventListener('click', () => {
   if (saved) applyPreset(JSON.parse(saved));
 }
 
+// ── Final blur pass (when ?blur= param is set) ──
+let finalBlurRTA = null, finalBlurRTB = null;
+if (BLUR_RADIUS > 0) {
+  finalBlurRTA = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+  });
+  finalBlurRTB = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+  });
+}
+
+const finalBlurMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse: { value: null },
+    uDirection: { value: new THREE.Vector2(1.0, 0.0) },
+    uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    uRadius: { value: BLUR_RADIUS },
+  },
+  vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position,1.0);}`,
+  fragmentShader: /* glsl */ `
+    precision highp float;
+    uniform sampler2D tDiffuse;
+    uniform vec2 uDirection;
+    uniform vec2 uResolution;
+    uniform float uRadius;
+    varying vec2 vUv;
+    void main() {
+      vec2 ts = 1.0 / uResolution;
+      vec4 r = vec4(0.0);
+      float weights[7];
+      weights[0] = 0.159576;
+      weights[1] = 0.147308;
+      weights[2] = 0.115876;
+      weights[3] = 0.077610;
+      weights[4] = 0.044318;
+      weights[5] = 0.021570;
+      weights[6] = 0.008934;
+      r += texture2D(tDiffuse, vUv) * weights[0];
+      for (int i = 1; i < 7; i++) {
+        vec2 off = uDirection * ts * float(i) * uRadius / 6.0;
+        r += texture2D(tDiffuse, vUv + off) * weights[i];
+        r += texture2D(tDiffuse, vUv - off) * weights[i];
+      }
+      gl_FragColor = r;
+    }
+  `,
+});
+
 // ── Visibility-based rendering ──
 let isVisible = !document.hidden;
 document.addEventListener('visibilitychange', () => { isVisible = !document.hidden; });
@@ -986,12 +1039,16 @@ document.addEventListener('visibilitychange', () => { isVisible = !document.hidd
 // ── Animation Loop ──
 let prevTime = performance.now();
 let elapsed = 0;
+let frameCount = 0;
+const FRAME_SKIP = Math.max(1, Math.round(SLOW_FACTOR));
 
 function animate() {
   requestAnimationFrame(animate);
   if (!isVisible) return;
+  frameCount++;
+  if (frameCount % FRAME_SKIP !== 0) return;
   const now = performance.now();
-  const delta = Math.min((now - prevTime) / 1000, 0.05);
+  const delta = Math.min((now - prevTime) / 1000, 0.05) / SLOW_FACTOR;
   prevTime = now;
   elapsed += delta;
 
@@ -1092,8 +1149,41 @@ function animate() {
   compositeMaterial.uniforms.tScene.value = compositeRT.texture;
   compositeMaterial.uniforms.tBloom.value = bloomRTA.texture;
   compositeMaterial.uniforms.tBloom2.value = bloom2RTA.texture;
-  renderer.setRenderTarget(null);
-  renderer.render(bloomScene, bloomCamera);
+
+  if (BLUR_RADIUS > 0 && finalBlurRTA && finalBlurRTB) {
+    // Render composite to RT, then blur to screen
+    renderer.setRenderTarget(finalBlurRTA);
+    renderer.render(bloomScene, bloomCamera);
+
+    bloomQuad.material = finalBlurMaterial;
+    finalBlurMaterial.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+
+    // H blur
+    finalBlurMaterial.uniforms.tDiffuse.value = finalBlurRTA.texture;
+    finalBlurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+    renderer.setRenderTarget(finalBlurRTB);
+    renderer.render(bloomScene, bloomCamera);
+
+    // V blur
+    finalBlurMaterial.uniforms.tDiffuse.value = finalBlurRTB.texture;
+    finalBlurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+    renderer.setRenderTarget(finalBlurRTA);
+    renderer.render(bloomScene, bloomCamera);
+
+    // Second H+V pass for smoother result
+    finalBlurMaterial.uniforms.tDiffuse.value = finalBlurRTA.texture;
+    finalBlurMaterial.uniforms.uDirection.value.set(1.0, 0.0);
+    renderer.setRenderTarget(finalBlurRTB);
+    renderer.render(bloomScene, bloomCamera);
+
+    finalBlurMaterial.uniforms.tDiffuse.value = finalBlurRTB.texture;
+    finalBlurMaterial.uniforms.uDirection.value.set(0.0, 1.0);
+    renderer.setRenderTarget(null);
+    renderer.render(bloomScene, bloomCamera);
+  } else {
+    renderer.setRenderTarget(null);
+    renderer.render(bloomScene, bloomCamera);
+  }
 }
 
 // ── Resize ──
@@ -1114,6 +1204,8 @@ window.addEventListener('resize', () => {
   bloom2H = Math.floor(h / bloomDownScale2);
   bloom2RTA.setSize(bloom2W, bloom2H);
   bloom2RTB.setSize(bloom2W, bloom2H);
+  if (finalBlurRTA) finalBlurRTA.setSize(w, h);
+  if (finalBlurRTB) finalBlurRTB.setSize(w, h);
 });
 
 animate();

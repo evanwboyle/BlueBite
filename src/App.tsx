@@ -16,13 +16,20 @@ import { optimisticUpdate } from './utils/optimistic';
 import { connectSSE } from './utils/sse';
 import type { SSEEventType } from './utils/sse';
 import { Bell } from 'lucide-react';
-const MarbleBackground = () => (
-  <iframe
-    src="/marble-bg.html"
-    style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none', zIndex: 0, pointerEvents: 'none' }}
-    title="background"
-  />
-);
+import { GlassPanel } from './components/ui';
+const MarbleBackground = ({ blur, slow }: { blur?: number; slow?: number }) => {
+  const params = new URLSearchParams();
+  if (blur) params.set('blur', String(blur));
+  if (slow) params.set('slow', String(slow));
+  const qs = params.toString();
+  return (
+    <iframe
+      src={`/marble-bg.html${qs ? '?' + qs : ''}`}
+      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none', zIndex: 0, pointerEvents: 'none' }}
+      title="background"
+    />
+  );
+};
 
 function App() {
   // Detect if this is a popout view (menu-only or orders-only)
@@ -535,10 +542,10 @@ function App() {
   if (popoutView === 'menu') {
     return (
       <div className="relative h-screen w-full overflow-hidden">
-        <MarbleBackground />
+        <MarbleBackground slow={6} />
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
-          <Header onSettingsClick={() => setIsSettingsOpen(true)} onCartClick={() => setIsCartOpen(true)} cartCount={cartItems.length} currentUser={currentUser} selectedButtery={selectedButtery} />
-          <div className="flex-1 overflow-hidden glass-container" style={{ borderRadius: 'var(--radius-card)' }}>
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <GlassPanel level="modal" className="flex-1 overflow-hidden" style={{ padding: 0 }}>
             <MenuGrid
               items={menuItems}
               onAddToCart={handleAddToCart}
@@ -550,7 +557,7 @@ function App() {
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
             />
-          </div>
+          </GlassPanel>
         </div>
 
         {isCartOpen && (
@@ -567,7 +574,7 @@ function App() {
   if (popoutView === 'orders') {
     return (
       <div className="relative h-screen w-full overflow-hidden">
-        <MarbleBackground />
+        <MarbleBackground slow={6} />
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
           <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
           <div className="flex-1 overflow-hidden">
@@ -586,15 +593,13 @@ function App() {
   return (
     <div className="relative h-screen w-full overflow-hidden">
       {/* Marble background */}
-      <MarbleBackground />
+      <MarbleBackground slow={6} />
 
-      {/* Content layer */}
-      <div className="relative h-full flex flex-col p-4 gap-3" style={{ zIndex: 10 }}>
+      {/* Content layer — generous padding so panels float over the marble background */}
+      <div className="relative h-full flex flex-col gap-4" style={{ zIndex: 10, padding: 'clamp(24px, 4vw, 72px)' }}>
         {/* Glass Header */}
         <Header
           onSettingsClick={() => setIsSettingsOpen(true)}
-          onCartClick={() => setIsCartOpen(true)}
-          cartCount={cartItems.length}
           currentUser={currentUser}
           selectedButtery={selectedButtery}
         />
@@ -617,30 +622,28 @@ function App() {
           </div>
         )}
 
-        {/* Main Layout with Resizable Divider */}
-        <div className="flex-1 flex overflow-hidden gap-3 min-h-0">
+        {/* Main Layout with Resizable Divider
+             Divider is 6px wide, gaps are 16px each (gap-4). Total non-panel space = 6 + 16 + 16 = 38px.
+             Each panel gets its share of the remaining space. */}
+        <div className="flex-1 flex gap-4 min-h-0">
           {/* Left Panel - Menu */}
-          <div
-            style={{ flex: `0 0 ${leftPanelWidth}%` }}
-            className="flex flex-col min-w-0"
+          <GlassPanel
+            level="modal"
+            className="flex flex-col overflow-hidden"
+            style={{ padding: 0, flex: `0 0 calc(${leftPanelWidth}% - 19px)`, minWidth: 0 }}
           >
-            <div
-              className="glass-container flex-1 flex flex-col overflow-hidden"
-              style={{ borderRadius: 'var(--radius-card)' }}
-            >
-              <MenuGrid
-                items={menuItems}
-                onAddToCart={handleAddToCart}
-                cartCount={cartItems.length}
-                onCartClick={() => setIsCartOpen(true)}
-                isEditMode={isEditMode}
-                currentUser={currentUser}
-                onUpdateMenuItem={handleUpdateMenuItem}
-                onCreateMenuItem={handleCreateMenuItem}
-                onDeleteMenuItem={handleDeleteMenuItem}
-              />
-            </div>
-          </div>
+            <MenuGrid
+              items={menuItems}
+              onAddToCart={handleAddToCart}
+              cartCount={cartItems.length}
+              onCartClick={() => setIsCartOpen(true)}
+              isEditMode={isEditMode}
+              currentUser={currentUser}
+              onUpdateMenuItem={handleUpdateMenuItem}
+              onCreateMenuItem={handleCreateMenuItem}
+              onDeleteMenuItem={handleDeleteMenuItem}
+            />
+          </GlassPanel>
 
           {/* Resizable Divider */}
           <div
@@ -676,8 +679,7 @@ function App() {
 
           {/* Right Panel - Orders */}
           <div
-            style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 18px)` }}
-            className="flex flex-col min-w-0 overflow-hidden"
+            style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 19px)`, minWidth: 0 }}
           >
             <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
           </div>

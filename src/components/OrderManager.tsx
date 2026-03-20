@@ -3,6 +3,7 @@ import type { Order } from '../types';
 import { ChevronDown, ChevronUp, RotateCcw, Lock, LockOpen, ExternalLink } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
+import { GlassPanel } from './ui';
 
 interface OrderManagerProps {
   orders: Order[];
@@ -10,7 +11,7 @@ interface OrderManagerProps {
   isPopout?: boolean;
 }
 
-export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderManagerProps) {
+export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -157,23 +158,27 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
   };
 
   return (
-    <div
-      className={`${isPopout ? '' : 'glass-container'} h-full w-full flex flex-col relative`}
-      style={{ borderRadius: 'var(--radius-card)' }}
+    <GlassPanel
+      level="modal"
+      className="h-full w-full flex flex-col relative"
+      style={{ padding: 0 }}
     >
       {/* Header */}
       <div
-        className="glass-header p-5 flex items-center justify-between"
-        style={{ borderRadius: 'var(--radius-card) var(--radius-card) 0 0' }}
+        className="flex items-center justify-between"
+        style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid rgba(120, 180, 255, 0.10)',
+        }}
       >
         <h2
           style={{
             fontFamily: 'var(--font-heading)',
-            fontSize: '1.5rem',
+            fontSize: '2rem',
             color: 'var(--text-primary)',
           }}
         >
-          Orders <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)', fontSize: '1rem' }}>({sortedOrders.length}/{ordersWithinPast12h.length})</span>
+          Orders <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)', fontSize: '1.1rem' }}>({sortedOrders.length}/{ordersWithinPast12h.length})</span>
         </h2>
         <div className="flex items-center gap-3">
           <button
@@ -230,7 +235,7 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
 
       {/* Orders List */}
       <div className="flex-1 relative">
-        <div className={`absolute inset-0 overflow-y-auto p-3 ${locked ? 'blur-sm pointer-events-none' : ''} transition-all`}>
+        <div className={`absolute inset-0 overflow-y-auto p-4 ${locked ? 'blur-sm pointer-events-none' : ''} transition-all`}>
         {sortedOrders.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -238,11 +243,13 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {sortedOrders.map(order => (
-              <div
+              <GlassPanel
                 key={order.id}
-                className="glass-order-card rounded-xl overflow-hidden"
+                level="surface"
+                className="overflow-hidden"
+                style={{ padding: 0 }}
                 onMouseMove={handleMouseMove}
               >
                 {/* Order Header */}
@@ -256,7 +263,7 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
                     }
                     setExpandedOrders(newExpanded);
                   }}
-                  className="w-full p-4 transition-all text-left flex items-center justify-between"
+                  className="w-full p-5 transition-all text-left flex items-center justify-between"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
@@ -279,7 +286,7 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
 
                 {/* Order Details */}
                 {expandedOrders.has(order.id) && (
-                  <div className="glass-expanded-details p-4 space-y-4">
+                  <div className="glass-expanded-details p-5 space-y-4">
                     {/* Customer Profile Image */}
                     <div className="glass-profile-card flex items-center gap-4 p-3 rounded-lg">
                       <img
@@ -329,7 +336,7 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
                           };
 
                           return (
-                            <div key={idx} className="text-sm text-gray-200 bg-white/5 rounded-lg p-2">
+                            <div key={idx} className="text-sm text-gray-200 bg-white/5 rounded-lg p-3">
                               <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-3 flex-1">
                                   <input
@@ -391,7 +398,7 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
                     </div>
                   </div>
                 )}
-              </div>
+              </GlassPanel>
             ))}
           </div>
         )}
@@ -406,6 +413,6 @@ export function OrderManager({ orders, onUpdateOrder, isPopout = false }: OrderM
           </div>
         )}
       </div>
-    </div>
+    </GlassPanel>
   );
 }

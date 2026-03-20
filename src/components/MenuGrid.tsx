@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, ShoppingCart, ExternalLink } from 'lucide-react';
 import { ItemDetailModal } from './ItemDetailModal';
+import { GlassPanel } from './ui';
 
 interface MenuGridProps {
   items: MenuItem[];
@@ -18,6 +19,8 @@ interface MenuGridProps {
 export function MenuGrid({
   items,
   onAddToCart,
+  cartCount = 0,
+  onCartClick,
   isEditMode = false,
   currentUser = null,
   onDeleteMenuItem,
@@ -43,18 +46,61 @@ export function MenuGrid({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Add Item button for edit mode */}
-      {showEditControls && onCreateMenuItem && (
-        <div className="flex-shrink-0 px-6 pt-4 pb-2">
+      {/* Menu Header */}
+      <div
+        className="flex-shrink-0 flex items-center justify-between"
+        style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid rgba(120, 180, 255, 0.10)',
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '2rem',
+            color: 'var(--text-primary)',
+          }}
+        >
+          Menu
+        </h2>
+        <div className="flex items-center gap-3">
+          {showEditControls && onCreateMenuItem && (
+            <button
+              onClick={() => setIsCreatingItem(true)}
+              className="glass-button px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm"
+            >
+              <Plus size={16} />
+              Add Item
+            </button>
+          )}
           <button
-            onClick={() => setIsCreatingItem(true)}
-            className="glass-button px-4 py-2 rounded-lg transition flex items-center gap-2"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set('view', 'menu');
+              window.open(url.toString(), '_blank');
+            }}
+            className="glass-button px-3 py-2 rounded-lg transition"
+            aria-label="Open in new window"
+            title="Open in new window"
           >
-            <Plus size={18} />
-            <span className="text-sm font-medium">Add Item</span>
+            <ExternalLink size={16} />
           </button>
+          {onCartClick && (
+            <button
+              onClick={onCartClick}
+              className="glass-button px-3 py-2 rounded-lg transition relative"
+              title="Cart"
+            >
+              <ShoppingCart size={18} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Scrollable menu content */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
@@ -63,7 +109,7 @@ export function MenuGrid({
             <h3
               style={{
                 fontFamily: 'var(--font-heading)',
-                fontSize: '1.5rem',
+                fontSize: '2rem',
                 color: 'var(--text-primary)',
                 marginBottom: '1rem',
               }}
@@ -79,9 +125,10 @@ export function MenuGrid({
                     className="relative group cursor-pointer"
                     onClick={() => !showEditControls && handleAddItem(item)}
                   >
-                    <div
-                      className="glass-order-card rounded-xl overflow-hidden h-full flex flex-col"
-                      style={{ minHeight: '200px' }}
+                    <GlassPanel
+                      level="surface"
+                      className="h-full flex flex-col overflow-hidden"
+                      style={{ padding: 0, minHeight: '200px' }}
                     >
                       {/* Image */}
                       <div className="h-32 overflow-hidden relative rounded-t-xl">
@@ -105,11 +152,10 @@ export function MenuGrid({
                         {/* Hot badge */}
                         {item.hot && (
                           <span
-                            className="absolute top-2 right-2 text-xs font-semibold px-2 py-1 rounded"
+                            className="absolute top-3 right-3 text-xs font-semibold px-3 py-1.5 rounded-lg"
                             style={{
                               background: 'rgba(239, 68, 68, 0.7)',
                               color: '#fff',
-                              backdropFilter: 'blur(4px)',
                             }}
                           >
                             Hot
@@ -128,24 +174,24 @@ export function MenuGrid({
                         )}
                       </div>
 
-                      {/* Info overlay at bottom */}
-                      <div className="p-3 flex-1 flex flex-col justify-end">
+                      {/* Info area */}
+                      <div className="p-4 flex-1 flex flex-col justify-end">
                         <h4
                           className="line-clamp-2"
                           style={{
                             fontWeight: 600,
-                            fontSize: '0.875rem',
+                            fontSize: '0.9rem',
                             color: 'var(--text-primary)',
                           }}
                         >
                           {item.name}
                         </h4>
-                        <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex items-center justify-between mt-2">
                           <span
                             style={{
                               color: '#60a5fa',
                               fontWeight: 700,
-                              fontSize: '1rem',
+                              fontSize: '1.05rem',
                             }}
                           >
                             ${item.price.toFixed(2)}
@@ -157,15 +203,15 @@ export function MenuGrid({
                                 e.stopPropagation();
                                 handleAddItem(item);
                               }}
-                              className="w-8 h-8 glass-button-primary text-blue-300 rounded-full flex items-center justify-center transition transform hover:scale-110"
+                              className="w-10 h-10 glass-button-primary text-blue-300 rounded-full flex items-center justify-center transition transform hover:scale-110"
                               aria-label={`Add ${item.name}`}
                             >
-                              <Plus size={16} />
+                              <Plus size={20} />
                             </button>
                           )}
                         </div>
                       </div>
-                    </div>
+                    </GlassPanel>
                   </div>
                 ))}
             </div>

@@ -11,10 +11,10 @@
 
   /* -- Background & Surface Colors (blue-tinted for marble bg) -- */
   --color-void: #050a14;
-  --glass-whisper: rgba(6, 14, 32, 0.65);     /* inner surfaces, cards */
-  --glass-breath: rgba(8, 18, 38, 0.72);      /* main panels */
-  --glass-mist: rgba(10, 22, 44, 0.78);       /* modals, focus surfaces */
-  --glass-fog: rgba(12, 26, 50, 0.84);        /* input fields, hover states */
+  --glass-whisper: rgba(10, 22, 44, 0.82);    /* inner surfaces, cards */
+  --glass-breath: rgba(12, 26, 50, 0.85);     /* main panels */
+  --glass-mist: rgba(14, 30, 56, 0.90);       /* modals, focus surfaces */
+  --glass-fog: rgba(16, 34, 62, 0.92);        /* input fields, hover states */
 
   /* -- Borders -- */
   --border-glass: 1px solid rgba(100, 170, 255, 0.28);
@@ -36,8 +36,8 @@
   --shadow-glow-blue: 0 0 80px rgba(59, 130, 246, 0.08);
 
   /* -- Radii (with coordinated padding) -- */
-  --radius-modal: 1.25rem;
-  --radius-card: 0.875rem;
+  --radius-modal: 1.5rem;
+  --radius-card: 1.25rem;
   --radius-button: 0.625rem;
   --radius-badge: 0.25rem;
 
