@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { OrderItem } from '../types';
-import { X, Trash2, ShoppingCart } from 'lucide-react';
+import { X, Trash2, ShoppingCart, AlertTriangle } from 'lucide-react';
 import { calculateCartTotal } from '../utils/cart';
 import { GlassPanel } from './ui';
 
@@ -9,6 +9,8 @@ interface CartModalProps {
   onClose: () => void;
   onRemoveItem: (index: number) => void;
   onCheckout: (netId: string, phone: string) => void;
+  isSubmitting?: boolean;
+  error?: string | null;
 }
 
 export function CartModal({
@@ -16,20 +18,18 @@ export function CartModal({
   onClose,
   onRemoveItem,
   onCheckout,
+  isSubmitting = false,
+  error = null,
 }: CartModalProps) {
   const [netId, setNetId] = useState('');
   const [phone, setPhone] = useState('');
   const total = calculateCartTotal(items);
 
   const handlePlaceOrder = () => {
-    if (!netId.trim()) {
-      alert('Please enter your NetID');
-      return;
-    }
+    if (!netId.trim() || isSubmitting) return;
     onCheckout(netId, phone.trim());
     setNetId('');
     setPhone('');
-    onClose();
   };
 
   return (
@@ -49,6 +49,14 @@ export function CartModal({
             <X size={24} />
           </button>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="mx-6 mt-4 p-4 rounded-lg flex items-start gap-3" style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+            <AlertTriangle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-300 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-6">
@@ -118,6 +126,7 @@ export function CartModal({
                   }
                 }}
                 autoFocus
+                disabled={isSubmitting}
               />
             </div>
 
@@ -136,15 +145,16 @@ export function CartModal({
                     handlePlaceOrder();
                   }
                 }}
+                disabled={isSubmitting}
               />
             </div>
 
             <button
               onClick={handlePlaceOrder}
               className="glass-button-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!netId.trim()}
+              disabled={!netId.trim() || isSubmitting}
             >
-              Place Order
+              {isSubmitting ? 'Placing Order...' : 'Place Order'}
             </button>
           </div>
         )}

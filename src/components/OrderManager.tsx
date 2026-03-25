@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Order } from '../types';
-import { ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff, Phone, MessageSquare } from 'lucide-react';
+import { RotateCcw, Lock, LockOpen, Eye, EyeOff, Phone, MessageSquare } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 import { GlassPanel } from './ui';

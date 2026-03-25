@@ -57,73 +57,6 @@ const menuItemInclude = {
   },
 };
 
-// ============================================
-// SSE (Server-Sent Events) Infrastructure
-// ============================================
-
-interface SSEClient {
-  id: string;
-  res: Response;
-  buttery: string | null;
-}
-
-const sseClients: SSEClient[] = [];
-
-function broadcastEvent(eventType: string, data: unknown, buttery?: string | null) {
-  const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
-  const deadClients: number[] = [];
-  for (let i = 0; i < sseClients.length; i++) {
-    const client = sseClients[i];
-    // Send to all clients, or filter by buttery if both are specified
-    if (!buttery || !client.buttery || client.buttery === buttery) {
-      try {
-        client.res.write(payload);
-      } catch {
-        console.warn(`[SSE] Failed to write to client ${client.id}, marking for removal`);
-        deadClients.push(i);
-      }
-    }
-  }
-  // Clean up dead clients (reverse order to preserve indices)
-  for (let i = deadClients.length - 1; i >= 0; i--) {
-    sseClients.splice(deadClients[i], 1);
-  }
-}
-
-// SSE endpoint - clients connect here to receive real-time updates
-app.get("/api/events", (req: Request, res: Response) => {
-  const buttery = (req.query.buttery as string) || null;
-
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "http://localhost:5173",
-    "Access-Control-Allow-Credentials": "true",
-  });
-
-  // Send initial heartbeat
-  res.write("event: connected\ndata: {}\n\n");
-
-  const clientId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const client: SSEClient = { id: clientId, res, buttery };
-  sseClients.push(client);
-
-  console.log(`[SSE] Client ${clientId} connected (buttery: ${buttery || "all"}). Total: ${sseClients.length}`);
-
-  // Send heartbeat every 30s to keep connection alive
-  const heartbeat = setInterval(() => {
-    res.write(": heartbeat\n\n");
-  }, 30000);
-
-  req.on("close", () => {
-    clearInterval(heartbeat);
-    const idx = sseClients.findIndex(c => c.id === clientId);
-    if (idx !== -1) sseClients.splice(idx, 1);
-    console.log(`[SSE] Client ${clientId} disconnected. Total: ${sseClients.length}`);
-  });
-});
-
 // Health check route
 app.get("/", (req: Request, res: Response) => {
   res.json({ message: "BlueBite API is running!", status: "ok" });
@@ -264,7 +197,7 @@ app.post("/api/menu", requireAuth, requireAdmin, async (req: Request, res: Respo
       },
       include: menuItemInclude,
     });
-    broadcastEvent("menu:created", item, item.buttery);
+
     res.status(201).json(item);
   } catch {
     res.status(500).json({ error: "Failed to create menu item" });
@@ -325,7 +258,6 @@ app.post("/api/menu/:itemId/modifiers", requireAuth, requireAdmin, async (req: R
         modifierGroupId: modifierGroupId || null,
       },
     });
-    broadcastEvent("menu:updated", { id: itemId, modifierCreated: modifier });
     res.status(201).json(modifier);
   } catch {
     res.status(500).json({ error: "Failed to create modifier" });
@@ -428,7 +360,6 @@ app.post("/api/orders", async (req: Request, res: Response) => {
         },
       },
     });
-    broadcastEvent("order:created", order, order.buttery);
     const loggedInUser = req.user as { netId?: string } | undefined;
     syncOrderToSheet(order, loggedInUser?.netId);
     res.status(201).json(order);
@@ -521,7 +452,6 @@ app.patch("/api/orders/:orderId", async (req: Request, res: Response) => {
         },
       },
     });
-    broadcastEvent("order:updated", order, order.buttery);
     updateOrderStatusInSheet(orderId, status);
     res.json(order);
   } catch {
@@ -539,7 +469,6 @@ app.patch("/api/orders/:orderId/comments", async (req: Request, res: Response) =
       where: { id: orderId },
       data: { comments: comments || null },
     });
-    broadcastEvent("order:updated", order, order.buttery);
     updateOrderCommentsInSheet(orderId, comments || "");
     res.json(order);
   } catch {
@@ -591,7 +520,6 @@ app.patch("/api/menu/:itemId/toggle", requireAuth, requireStaff, async (req: Req
       include: menuItemInclude,
     });
 
-    broadcastEvent("menu:updated", item, item.buttery);
     res.json(item);
   } catch (error) {
     console.error('Toggle item error:', error);
@@ -611,7 +539,6 @@ app.put("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res
       include: menuItemInclude,
     });
 
-    broadcastEvent("menu:updated", item, item.buttery);
     res.json(item);
   } catch (error) {
     console.error('Update item error:', error);
@@ -643,7 +570,6 @@ app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, 
       data: { archived: true },
     });
 
-    broadcastEvent("menu:deleted", { id: itemId }, menuItem.buttery);
     res.json({
       success: true,
       message: `Menu item "${menuItem.name}" archived successfully`
@@ -675,7 +601,6 @@ app.put("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, as
       data,
     });
 
-    broadcastEvent("menu:updated", { id: req.params.itemId, modifierUpdated: modifier });
     res.json(modifier);
   } catch (error) {
     console.error('Update modifier error:', error);
@@ -691,7 +616,6 @@ app.delete("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin,
       where: { id: modifierId },
       data: { archived: true },
     });
-    broadcastEvent("menu:updated", { id: req.params.itemId, modifierDeleted: modifierId });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete modifier error:', error);
@@ -726,7 +650,6 @@ app.post("/api/menu/:itemId/modifier-groups", requireAuth, requireAdmin, async (
       include: { modifiers: { where: { archived: false } } },
     });
 
-    broadcastEvent("menu:updated", { id: itemId, modifierGroupCreated: group });
     res.status(201).json(group);
   } catch (error) {
     console.error('Create modifier group error:', error);
@@ -768,7 +691,6 @@ app.put("/api/menu/:itemId/modifier-groups/:groupId", requireAuth, requireAdmin,
       include: { modifiers: { where: { archived: false } } },
     });
 
-    broadcastEvent("menu:updated", { id: req.params.itemId, modifierGroupUpdated: group });
     res.json(group);
   } catch (error) {
     console.error('Update modifier group error:', error);
@@ -781,7 +703,6 @@ app.delete("/api/menu/:itemId/modifier-groups/:groupId", requireAuth, requireAdm
   try {
     const { groupId } = req.params;
     await prisma.modifierGroup.delete({ where: { id: groupId } });
-    broadcastEvent("menu:updated", { id: req.params.itemId, modifierGroupDeleted: groupId });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete modifier group error:', error);

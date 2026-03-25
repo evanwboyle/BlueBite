@@ -13,8 +13,8 @@ import { API_BASE_URL } from './utils/config';
 import { calculateCartTotal } from './utils/cart';
 import { enrichOrdersWithMenuNames } from './utils/order';
 import { optimisticUpdate } from './utils/optimistic';
-import { connectSSE } from './utils/sse';
-import type { SSEEventType } from './utils/sse';
+import { connectRealtime } from './utils/realtime';
+import type { RealtimeEventType } from './utils/realtime';
 import { Bell } from 'lucide-react';
 import { GlassPanel } from './components/ui';
 import { MarbleBackground } from './components/MarbleBackground';
@@ -45,11 +45,11 @@ function App() {
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Track orders with in-flight optimistic mutations.
-  // SSE re-fetches will preserve the optimistic status for these orders
+  // Realtime re-fetches will preserve the optimistic status for these orders
   // instead of overwriting them with stale server state.
   const pendingOrderUpdates = useRef<Map<string, Order['status']>>(new Map());
 
-  // Refs so SSE handler always has current data without
+  // Refs so Realtime handler always has current data without
   // being in the useEffect dependency array (which would cause reconnects).
   const menuItemsRef = useRef<MenuItem[]>(menuItems);
   menuItemsRef.current = menuItems;
@@ -180,34 +180,48 @@ function App() {
     loadOrders();
   }, [menuItems, selectedButtery]);
 
-  // SSE: Real-time updates from the backend
+  // Supabase Realtime: live updates from the database
   useEffect(() => {
-    // Debounce timers — coalesce rapid SSE events into a single re-fetch
-    let orderDebounce: ReturnType<typeof setTimeout> | null = null;
     let menuDebounce: ReturnType<typeof setTimeout> | null = null;
 
-    const connection = connectSSE(selectedButtery, (type: SSEEventType) => {
-      if (type === 'order:created' || type === 'order:updated') {
-        if (orderDebounce) clearTimeout(orderDebounce);
-        orderDebounce = setTimeout(() => {
-          api.fetchAllOrders(selectedButtery || undefined).then(freshOrders => {
-            const enriched = enrichOrdersWithMenuNames(freshOrders, menuItemsRef.current);
-            // Preserve optimistic status and client-only fields (phone) for orders with in-flight mutations
-            const merged = enriched.map(order => {
-              const pendingStatus = pendingOrderUpdates.current.get(order.id);
-              const existing = ordersRef.current.find(o => o.id === order.id);
-              return {
-                ...order,
-                ...(pendingStatus ? { status: pendingStatus } : {}),
-                ...(existing?.phone ? { phone: existing.phone } : {}),
-              };
-            });
-            setOrders(merged);
-            storage.setCachedOrders(merged, selectedButtery);
-          }).catch(err => {
-            console.error('[SSE] Failed to refresh orders after event:', err);
+    const connection = connectRealtime(selectedButtery, (type: RealtimeEventType, data: unknown) => {
+      const row = data as Record<string, unknown> | null;
+
+      if (type === 'order:updated' && row?.id) {
+        // Apply status change instantly from the Realtime payload — no API round-trip
+        const pendingStatus = pendingOrderUpdates.current.get(row.id as string);
+        setOrders(prev => {
+          const updated = prev.map(o => {
+            if (o.id !== row.id) return o;
+            return {
+              ...o,
+              // Preserve optimistic status if there's a pending mutation
+              status: pendingStatus ?? (row.status as Order['status']) ?? o.status,
+              comments: (row.comments as string | null) ?? o.comments,
+              totalPrice: (row.totalPrice as number) ?? o.totalPrice,
+            };
           });
-        }, 500);
+          storage.setCachedOrders(updated, selectedButtery);
+          return updated;
+        });
+      } else if (type === 'order:created') {
+        // New orders need a full fetch to get orderItems (not in the Order table payload)
+        api.fetchAllOrders(selectedButtery || undefined).then(freshOrders => {
+          const enriched = enrichOrdersWithMenuNames(freshOrders, menuItemsRef.current);
+          const merged = enriched.map(order => {
+            const pendingStatus = pendingOrderUpdates.current.get(order.id);
+            const existing = ordersRef.current.find(o => o.id === order.id);
+            return {
+              ...order,
+              ...(pendingStatus ? { status: pendingStatus } : {}),
+              ...(existing?.phone ? { phone: existing.phone } : {}),
+            };
+          });
+          setOrders(merged);
+          storage.setCachedOrders(merged, selectedButtery);
+        }).catch(err => {
+          console.error('[Realtime] Failed to refresh orders after new order:', err);
+        });
       } else if (type === 'menu:created' || type === 'menu:updated' || type === 'menu:deleted') {
         if (menuDebounce) clearTimeout(menuDebounce);
         menuDebounce = setTimeout(() => {
@@ -215,14 +229,13 @@ function App() {
             setMenuItems(freshMenu);
             storage.setCachedMenu(freshMenu, selectedButtery);
           }).catch(err => {
-            console.error('[SSE] Failed to refresh menu after event:', err);
+            console.error('[Realtime] Failed to refresh menu after event:', err);
           });
-        }, 500);
+        }, 100);
       }
     });
 
     return () => {
-      if (orderDebounce) clearTimeout(orderDebounce);
       if (menuDebounce) clearTimeout(menuDebounce);
       connection.close();
     };
@@ -242,44 +255,90 @@ function App() {
     storage.setCart({ items: newCart, total: calculateCartTotal(newCart) });
   };
 
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   const handleCheckout = async (netId: string, phone?: string) => {
     if (cartItems.length === 0) {
       setNotification('Cart is empty');
       return;
     }
 
+    setCheckoutError(null);
+    setIsCheckingOut(true);
+
+    const totalPrice = calculateCartTotal(cartItems);
+    const tempId = `temp-${Date.now()}`;
+
+    // Build optimistic order immediately
+    const optimisticOrder: Order = {
+      id: tempId,
+      netId,
+      buttery: selectedButtery,
+      items: cartItems.map(item => ({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        modifiers: item.modifiers,
+      })),
+      totalPrice,
+      status: 'pending',
+      placedAt: Date.now(),
+      phone: phone || undefined,
+    };
+
+    // Optimistically add the order, clear cart, close modal
+    setOrders(prev => [...prev, optimisticOrder]);
+    setCartItems([]);
+    storage.setCart({ items: [], total: 0 });
+    setIsCartOpen(false);
+    setIsCheckingOut(false);
+    setNotification('Order placed!');
+    setTimeout(() => setNotification(null), 3000);
+
     try {
-      const totalPrice = calculateCartTotal(cartItems);
       const newOrder = await api.createOrder(
         netId,
-        cartItems,
+        optimisticOrder.items,
         totalPrice,
         selectedButtery || undefined,
         phone
       );
 
+      // Replace temp order with real server order
       const enrichedOrders = enrichOrdersWithMenuNames([newOrder], menuItems);
-      const newOrders = [...orders, enrichedOrders[0]];
-      setOrders(newOrders);
-
-      // Update cache with new order
-      storage.setCachedOrders(newOrders, selectedButtery);
-
-      setCartItems([]);
-      storage.setCart({ items: [], total: 0 });
-      setIsCartOpen(false);
-      setNotification(`Order ${newOrder.id} placed!`);
-      setTimeout(() => setNotification(null), 3000);
+      setOrders(prev => {
+        const updated = prev.map(o => o.id === tempId ? enrichedOrders[0] : o);
+        storage.setCachedOrders(updated, selectedButtery);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to create order:', error);
-      setNotification('Failed to place order');
-      setTimeout(() => setNotification(null), 3000);
+
+      // Remove the optimistic order
+      setOrders(prev => {
+        const updated = prev.filter(o => o.id !== tempId);
+        storage.setCachedOrders(updated, selectedButtery);
+        return updated;
+      });
+
+      // Restore cart items so the user can retry
+      setCartItems(optimisticOrder.items);
+      storage.setCart({ items: optimisticOrder.items, total: totalPrice });
+
+      // Show error in notification and set checkout error for modal
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setCheckoutError(`Order failed: ${message}. Your cart has been restored.`);
+      setIsCartOpen(true);
+      setNotification(`Failed to place order: ${message}`);
+      setTimeout(() => setNotification(null), 5000);
     }
   };
 
   const handleUpdateOrder = (id: string, status: Order['status']) => {
     // Mark this order as having a pending optimistic mutation.
-    // SSE re-fetches will preserve this status until the sync confirms it.
+    // Realtime re-fetches will preserve this status until the sync confirms it.
     pendingOrderUpdates.current.set(id, status);
 
     // Use optimistic update pattern with retry logic
@@ -299,7 +358,7 @@ function App() {
       // 2. Sync to backend asynchronously with automatic retry (3 attempts over 30s)
       syncFn: () => api.updateOrderStatus(id, status),
 
-      // 3. On success - clear pending flag, let SSE handle final state
+      // 3. On success - clear pending flag, let Realtime handle final state
       onSuccess: () => {
         // Only clear if our status is still the pending one (not overwritten by a newer click)
         if (pendingOrderUpdates.current.get(id) === status) {
@@ -560,7 +619,7 @@ function App() {
         </div>
 
         {isCartOpen && (
-          <CartModal items={cartItems} onClose={() => setIsCartOpen(false)} onRemoveItem={handleRemoveFromCart} onCheckout={handleCheckout} />
+          <CartModal items={cartItems} onClose={() => { setIsCartOpen(false); setCheckoutError(null); }} onRemoveItem={handleRemoveFromCart} onCheckout={handleCheckout} isSubmitting={isCheckingOut} error={checkoutError} />
         )}
         {isSettingsOpen && (
           <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} />
@@ -689,9 +748,11 @@ function App() {
       {isCartOpen && (
         <CartModal
           items={cartItems}
-          onClose={() => setIsCartOpen(false)}
+          onClose={() => { setIsCartOpen(false); setCheckoutError(null); }}
           onRemoveItem={handleRemoveFromCart}
           onCheckout={handleCheckout}
+          isSubmitting={isCheckingOut}
+          error={checkoutError}
         />
       )}
 
