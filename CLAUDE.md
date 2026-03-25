@@ -30,12 +30,14 @@ BlueBite is a **full-stack React 19 web application** for a Yale Buttery orderin
 - **Vite 7** for bundling and dev server
 - **Tailwind CSS 4** for styling with custom theme
 - **Lucide React** for icons
+- **Supabase Realtime** for live order/menu updates (via `@supabase/supabase-js`)
 - **localStorage** for caching menu items and orders (progressive enhancement)
 
 **Backend:**
 - **Express 5** with TypeScript
 - **Prisma ORM** for database access
 - **PostgreSQL** (hosted on Supabase)
+- **Supabase Realtime** enabled on `Order` and `MenuItem` tables (configured in Supabase dashboard → Database → Replication)
 - **Passport.js** with Yale CAS authentication strategy
 - **express-session** for session management
 - **CORS** enabled for frontend communication
@@ -67,7 +69,8 @@ BlueBite/
 │   ├── utils/
 │   │   ├── api.ts               # Backend API client (fetch wrappers for all endpoints)
 │   │   ├── config.ts            # App config (API_BASE_URL from VITE_API_URL)
-│   │   ├── sse.ts               # Server-Sent Events client (real-time order/menu updates)
+│   │   ├── supabase.ts           # Supabase client initialization (Realtime)
+│   │   ├── realtime.ts           # Supabase Realtime subscriptions (live order/menu updates)
 │   │   ├── storage.ts           # localStorage cache abstraction
 │   │   ├── cart.ts              # Cart total calculation
 │   │   ├── order.ts             # Order enrichment (menu name lookups)
@@ -107,7 +110,7 @@ BlueBite/
 ### Frontend State Management
 - **Unidirectional flow**: App.tsx manages all state, passes data down as props, receives updates via callbacks
 - **No external state management** - uses React hooks (useState, useEffect)
-- **Real-time updates via SSE**: `src/utils/sse.ts` connects to `/api/events` for order and menu change events (singleton EventSource pattern)
+- **Real-time updates via Supabase Realtime**: `src/utils/realtime.ts` subscribes to Postgres changes on `Order` and `MenuItem` tables via WebSocket. Order status updates are applied instantly from the payload; new orders and menu changes trigger an API re-fetch.
 - **Optimistic updates**: `src/utils/optimistic.ts` provides instant UI feedback before server confirmation
 - **API client**: `src/utils/api.ts` wraps all backend calls with type-safe response mapping
 - **Progressive caching**: localStorage caches API responses (menu items, orders) with buttery-aware invalidation
@@ -115,9 +118,6 @@ BlueBite/
 
 ### Backend API Endpoints
 All endpoints are defined in `backend/src/index.ts`:
-
-**Real-time:**
-- `GET /api/events` - SSE stream for order and menu change events
 
 **Authentication (Yale CAS):**
 - `GET /api/auth/login` - Initiates CAS login and handles callback with ticket validation
@@ -187,7 +187,7 @@ All endpoints are defined in `backend/src/index.ts`:
 ## Key Frontend Features
 
 - **Split-screen layout**: Resizable left panel (ordering) and right panel (order management)
-- **Real-time order tracking**: Server-Sent Events (SSE) for live status updates
+- **Real-time order tracking**: Supabase Realtime (Postgres WebSocket subscriptions) for live status updates
 - **Modifiers system**: Items can have add-ons/customizations
 - **Buttery filtering**: Multi-buttery support with user preference persistence
 - **UI Polish**: Semi-transparent blurred backgrounds, color-coded status badges, animations
@@ -293,7 +293,11 @@ All glassmorphism values (colors, blur, radii, shadows, text opacity) are CSS cu
 ## Environment Variables
 
 ### Frontend (.env in project root)
-Optional (Vite exposes these via `import.meta.env`):
+Required for Realtime (Vite exposes these via `import.meta.env`):
+- `VITE_SUPABASE_URL` - Supabase project URL (e.g., "https://xxx.supabase.co")
+- `VITE_SUPABASE_ANON_KEY` - Supabase anon/public key (safe for frontend, controls access via RLS)
+
+Optional:
 - `VITE_API_URL` - Backend API base URL (default: "http://localhost:3000/api")
 - `VITE_YALIES_KEY` - Yalies API key for student directory lookups
 
