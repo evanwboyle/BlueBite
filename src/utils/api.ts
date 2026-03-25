@@ -12,6 +12,16 @@ interface BackendModifier {
   updatedAt: string;
 }
 
+interface BackendModifierGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number | null;
+  displayOrder: number;
+  modifiers: BackendModifier[];
+}
+
 interface BackendMenuItem {
   id: string;
   name: string;
@@ -24,6 +34,7 @@ interface BackendMenuItem {
   createdAt: string;
   updatedAt: string;
   modifiers: BackendModifier[];
+  modifierGroups?: BackendModifierGroup[];
 }
 
 /**
@@ -44,6 +55,20 @@ function transformMenuItem(item: BackendMenuItem): MenuItem {
       name: m.name,
       price: m.price,
       description: m.description || undefined,
+    })),
+    modifierGroups: (item.modifierGroups || []).map(g => ({
+      id: g.id,
+      name: g.name,
+      required: g.required,
+      minSelections: g.minSelections,
+      maxSelections: g.maxSelections,
+      displayOrder: g.displayOrder,
+      modifiers: g.modifiers.map(m => ({
+        id: m.id,
+        name: m.name,
+        price: m.price,
+        description: m.description || undefined,
+      })),
     })),
   };
 }
@@ -113,7 +138,8 @@ export const api = {
     netId: string,
     items: OrderItem[],
     totalPrice: number,
-    buttery?: string
+    buttery?: string,
+    phone?: string
   ): Promise<Order> {
     try {
       const response = await fetch(`${API_BASE_URL}/orders`, {
@@ -126,6 +152,7 @@ export const api = {
           netId,
           totalPrice,
           buttery: buttery || null,
+          phone: phone || null,
           items: items.map(item => ({
             menuItemId: item.menuItemId,
             quantity: item.quantity,
@@ -141,6 +168,8 @@ export const api = {
 
       interface BackendCreatedOrderItemModifier {
         id: string;
+        name?: string;
+        price?: number;
         modifier: {
           id: string;
           name: string;
@@ -151,6 +180,7 @@ export const api = {
       interface BackendCreatedOrderItem {
         id: string;
         menuItemId: string;
+        name?: string;
         quantity: number;
         price: number;
         modifiers?: BackendCreatedOrderItemModifier[];
@@ -164,15 +194,16 @@ export const api = {
         // Transform backend items to frontend OrderItem format
         items: (order.orderItems || []).map((backendItem: BackendCreatedOrderItem) => ({
           menuItemId: backendItem.menuItemId,
-          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          name: backendItem.name || '', // Use snapshot name from backend
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
+          modifiers: (backendItem.modifiers || []).map(m => m.name || m.modifier.name),
         })),
         totalPrice: order.totalPrice,
         status: order.status as Order['status'],
         placedAt: new Date(order.createdAt).getTime(),
         completedAt: order.updatedAt ? new Date(order.updatedAt).getTime() : undefined,
+        phone: order.phone || undefined,
       };
     } catch (error) {
       console.error('API Error - Failed to create order:', error);
@@ -203,6 +234,8 @@ export const api = {
 
       interface BackendOrderItemModifier {
         id: string;
+        name?: string;
+        price?: number;
         modifier: {
           id: string;
           name: string;
@@ -214,6 +247,7 @@ export const api = {
         id: string;
         orderId: string;
         menuItemId: string;
+        name?: string;
         quantity: number;
         price: number;
         createdAt: string;
@@ -227,6 +261,8 @@ export const api = {
         buttery: string | null;
         status: string;
         totalPrice: number;
+        comments: string | null;
+        phone: string | null;
         createdAt: string;
         updatedAt: string;
         orderItems: BackendOrderItem[];
@@ -237,19 +273,20 @@ export const api = {
         netId: o.netId,
         buttery: o.buttery,
         // Transform backend items to frontend OrderItem format
-        // CRITICAL: Backend items only have menuItemId, NOT name
-        // Name will be populated by enrichOrdersWithMenuNames() function
+        // Uses snapshot name from backend when available, falls back to enrichment
         items: (o.orderItems || []).map(backendItem => ({
           menuItemId: backendItem.menuItemId,
-          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          name: backendItem.name || '', // Use snapshot name from backend
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
+          modifiers: (backendItem.modifiers || []).map(m => m.name || m.modifier.name),
         })),
         totalPrice: o.totalPrice,
         status: o.status as Order['status'],
         placedAt: new Date(o.createdAt).getTime(),
         completedAt: o.updatedAt ? new Date(o.updatedAt).getTime() : undefined,
+        comments: o.comments || undefined,
+        phone: o.phone || undefined,
       }));
     } catch (error) {
       console.error('API Error - Failed to fetch all orders:', error);
@@ -277,6 +314,8 @@ export const api = {
 
       interface BackendUpdatedOrderItemModifier {
         id: string;
+        name?: string;
+        price?: number;
         modifier: {
           id: string;
           name: string;
@@ -287,6 +326,7 @@ export const api = {
       interface BackendUpdatedOrderItem {
         id: string;
         menuItemId: string;
+        name?: string;
         quantity: number;
         price: number;
         modifiers?: BackendUpdatedOrderItemModifier[];
@@ -300,10 +340,10 @@ export const api = {
         // Transform backend items to frontend OrderItem format
         items: (order.orderItems || []).map((backendItem: BackendUpdatedOrderItem) => ({
           menuItemId: backendItem.menuItemId,
-          name: '', // Empty - will be enriched by enrichOrdersWithMenuNames()
+          name: backendItem.name || '', // Use snapshot name from backend
           quantity: backendItem.quantity,
           price: backendItem.price,
-          modifiers: (backendItem.modifiers || []).map(m => m.modifier.name),
+          modifiers: (backendItem.modifiers || []).map(m => m.name || m.modifier.name),
         })),
         totalPrice: order.totalPrice,
         status: order.status as Order['status'],
@@ -312,6 +352,29 @@ export const api = {
       };
     } catch (error) {
       console.error('API Error - Failed to update order:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update an order's comments
+   */
+  async updateOrderComments(orderId: string, comments: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}/comments`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ comments }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('API Error - Failed to update order comments:', error);
       throw error;
     }
   },

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Order } from '../types';
-import { ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff } from 'lucide-react';
+import { ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff, Phone, MessageSquare } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 import { GlassPanel } from './ui';
@@ -8,9 +8,10 @@ import { GlassPanel } from './ui';
 interface OrderManagerProps {
   orders: Order[];
   onUpdateOrder: (id: string, status: Order['status']) => void;
+  onUpdateComments: (id: string, comments: string) => void;
 }
 
-export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
+export function OrderManager({ orders, onUpdateOrder, onUpdateComments }: OrderManagerProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -21,6 +22,8 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
   const [lockJiggle, setLockJiggle] = useState(false);
   const lockRef = useRef<HTMLButtonElement>(null);
   const [tick, setTick] = useState(0);
+  const [draftComments, setDraftComments] = useState<Map<string, string>>(new Map());
+  const commentTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Tick every second for order timers
   useEffect(() => {
@@ -196,6 +199,18 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
     setUndoStack(undoStack.slice(0, -1));
   };
 
+  const handleCommentChange = (orderId: string, value: string) => {
+    setDraftComments(prev => new Map(prev).set(orderId, value));
+
+    // Debounce: save after 800ms of no typing
+    const existing = commentTimers.current.get(orderId);
+    if (existing) clearTimeout(existing);
+    commentTimers.current.set(orderId, setTimeout(() => {
+      onUpdateComments(orderId, value);
+      commentTimers.current.delete(orderId);
+    }, 800));
+  };
+
   const getStatusButtons = (order: Order) => {
     const transitions: Record<Order['status'], Order['status'][]> = {
       pending: ['preparing', 'cancelled'],
@@ -324,6 +339,12 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                         />
                         <p className="order-number text-xl">Order #{orderNumberMap.get(order.id)}</p>
                         <p className="text-sm text-gray-400 mt-1">{customerName}</p>
+                        {order.phone && (
+                          <p className="text-sm text-blue-300/70 mt-1 flex items-center gap-1">
+                            <Phone size={13} />
+                            {order.phone}
+                          </p>
+                        )}
                       </button>
 
                       {/* Segmented status control */}
@@ -401,6 +422,26 @@ export function OrderManager({ orders, onUpdateOrder }: OrderManagerProps) {
                           <p className="text-sm text-yellow-100 mt-2 leading-relaxed">{order.specialInstructions}</p>
                         </div>
                       )}
+
+                      {/* Comments */}
+                      <div className="mb-4">
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                          <MessageSquare size={13} />
+                          Comments
+                        </label>
+                        <textarea
+                          value={draftComments.has(order.id) ? draftComments.get(order.id) : (order.comments || '')}
+                          onChange={(e) => handleCommentChange(order.id, e.target.value)}
+                          placeholder="Add a note..."
+                          rows={2}
+                          className="w-full text-sm rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/40"
+                          style={{
+                            background: 'rgba(5, 12, 30, 0.5)',
+                            border: '1px solid rgba(120, 180, 255, 0.15)',
+                            color: 'var(--text-primary)',
+                          }}
+                        />
+                      </div>
 
                       {/* Bottom actions row: cancel + complete + timer */}
                       <div className="flex items-center gap-3 pt-2" style={{ borderTop: '1px solid rgba(120, 180, 255, 0.08)' }}>

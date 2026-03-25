@@ -3,11 +3,16 @@ import cors from "cors";
 import dotenv from "dotenv";
 import session from "express-session";
 import path from "path";
+import multer from "multer";
 import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
+import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
 
 dotenv.config();
+
+// Multer for multipart file uploads (in-memory, 5MB limit)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const app: Express = express();
 const port = process.env.PORT || 3000;
@@ -42,6 +47,15 @@ app.use(passport.session());
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
+
+// Shared include for menu items (filters archived modifiers, includes groups)
+const menuItemInclude = {
+  modifiers: { where: { archived: false } },
+  modifierGroups: {
+    include: { modifiers: { where: { archived: false } } },
+    orderBy: { displayOrder: "asc" as const },
+  },
+};
 
 // ============================================
 // SSE (Server-Sent Events) Infrastructure
@@ -217,7 +231,7 @@ app.get("/api/menu", async (req: Request, res: Response) => {
         archived: false,
         ...(buttery && { buttery: buttery as string }),
       },
-      include: { modifiers: true },
+      include: menuItemInclude,
       orderBy: { category: "asc" },
     });
     res.json(items);
@@ -248,7 +262,7 @@ app.post("/api/menu", requireAuth, requireAdmin, async (req: Request, res: Respo
         buttery,
         image,
       },
-      include: { modifiers: true },
+      include: menuItemInclude,
     });
     broadcastEvent("menu:created", item, item.buttery);
     res.status(201).json(item);
@@ -263,7 +277,7 @@ app.get("/api/menu/category/:category", async (req: Request, res: Response) => {
     const { category } = req.params;
     const items = await prisma.menuItem.findMany({
       where: { category },
-      include: { modifiers: true },
+      include: menuItemInclude,
     });
     res.json(items);
   } catch {
@@ -277,7 +291,7 @@ app.get("/api/menu/:itemId", async (req: Request, res: Response) => {
     const { itemId } = req.params;
     const item = await prisma.menuItem.findUnique({
       where: { id: itemId },
-      include: { modifiers: true },
+      include: menuItemInclude,
     });
 
     if (!item) {
@@ -295,7 +309,7 @@ app.get("/api/menu/:itemId", async (req: Request, res: Response) => {
 app.post("/api/menu/:itemId/modifiers", requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { itemId } = req.params;
-    const { name, description, price } = req.body;
+    const { name, description, price, modifierGroupId } = req.body;
 
     if (!name || typeof price !== "number") {
       res.status(400).json({ error: "Name and price are required" });
@@ -308,20 +322,22 @@ app.post("/api/menu/:itemId/modifiers", requireAuth, requireAdmin, async (req: R
         description,
         price,
         menuItemId: itemId,
+        modifierGroupId: modifierGroupId || null,
       },
     });
+    broadcastEvent("menu:updated", { id: itemId, modifierCreated: modifier });
     res.status(201).json(modifier);
   } catch {
     res.status(500).json({ error: "Failed to create modifier" });
   }
 });
 
-// Get all modifiers for a menu item
+// Get all modifiers for a menu item (excludes archived)
 app.get("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
   try {
     const { itemId } = req.params;
     const modifiers = await prisma.modifier.findMany({
-      where: { menuItemId: itemId },
+      where: { menuItemId: itemId, archived: false },
     });
     res.json(modifiers);
   } catch {
@@ -332,10 +348,11 @@ app.get("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
 // Create a new order with items (auto-creates user if doesn't exist)
 app.post("/api/orders", async (req: Request, res: Response) => {
   try {
-    const { netId, totalPrice, buttery, items } = req.body as {
+    const { netId, totalPrice, buttery, phone, items } = req.body as {
       netId: string;
       totalPrice: number;
       buttery?: string;
+      phone?: string;
       items?: Array<{ menuItemId: string; quantity: number; price: number; modifiers?: string[] }>;
     };
 
@@ -351,44 +368,52 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       create: { netId, role: "customer" },
     });
 
-    // For each item with modifiers, we need to:
-    // 1. Look up modifier IDs by name for the menu item
-    // 2. Create OrderItemModifier junction records
+    // Build order items with snapshot data
+    const orderItemsData = await Promise.all((items || []).map(async (item) => {
+      // Fetch menu item for name snapshot
+      const menuItem = await prisma.menuItem.findUnique({
+        where: { id: item.menuItemId },
+      });
+
+      // Build modifier connections with snapshot data
+      let modifierCreates: { modifierId: string; name: string; price: number }[] = [];
+
+      if (item.modifiers && item.modifiers.length > 0) {
+        const availableModifiers = await prisma.modifier.findMany({
+          where: {
+            menuItemId: item.menuItemId,
+            name: { in: item.modifiers },
+            archived: false,
+          },
+        });
+
+        modifierCreates = availableModifiers.map(mod => ({
+          modifierId: mod.id,
+          name: mod.name,
+          price: mod.price,
+        }));
+      }
+
+      return {
+        menuItemId: item.menuItemId,
+        name: menuItem?.name || "Unknown Item",
+        quantity: item.quantity,
+        price: item.price,
+        modifiers: {
+          create: modifierCreates,
+        },
+      };
+    }));
+
     const order = await prisma.order.create({
       data: {
         netId,
         totalPrice,
         buttery: buttery || null,
+        phone: phone || null,
         status: "pending",
         orderItems: {
-          create: await Promise.all((items || []).map(async (item) => {
-            // If item has modifiers, look up their IDs
-            let modifierConnections: { modifier: { connect: { id: string } } }[] = [];
-
-            if (item.modifiers && item.modifiers.length > 0) {
-              // Fetch all modifiers for this menu item
-              const availableModifiers = await prisma.modifier.findMany({
-                where: {
-                  menuItemId: item.menuItemId,
-                  name: { in: item.modifiers },
-                },
-              });
-
-              // Create connections for each modifier
-              modifierConnections = availableModifiers.map(mod => ({
-                modifier: { connect: { id: mod.id } },
-              }));
-            }
-
-            return {
-              menuItemId: item.menuItemId,
-              quantity: item.quantity,
-              price: item.price,
-              modifiers: {
-                create: modifierConnections,
-              },
-            };
-          })),
+          create: orderItemsData,
         },
       },
       include: {
@@ -404,6 +429,8 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       },
     });
     broadcastEvent("order:created", order, order.buttery);
+    const loggedInUser = req.user as { netId?: string } | undefined;
+    syncOrderToSheet(order, loggedInUser?.netId);
     res.status(201).json(order);
   } catch (error) {
     console.error("Order creation error:", error);
@@ -495,9 +522,28 @@ app.patch("/api/orders/:orderId", async (req: Request, res: Response) => {
       },
     });
     broadcastEvent("order:updated", order, order.buttery);
+    updateOrderStatusInSheet(orderId, status);
     res.json(order);
   } catch {
     res.status(500).json({ error: "Failed to update order" });
+  }
+});
+
+// Update order comments
+app.patch("/api/orders/:orderId/comments", async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { comments } = req.body;
+
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { comments: comments || null },
+    });
+    broadcastEvent("order:updated", order, order.buttery);
+    updateOrderCommentsInSheet(orderId, comments || "");
+    res.json(order);
+  } catch {
+    res.status(500).json({ error: "Failed to update order comments" });
   }
 });
 
@@ -542,7 +588,7 @@ app.patch("/api/menu/:itemId/toggle", requireAuth, requireStaff, async (req: Req
     const item = await prisma.menuItem.update({
       where: { id: itemId },
       data: updates,
-      include: { modifiers: true },
+      include: menuItemInclude,
     });
 
     broadcastEvent("menu:updated", item, item.buttery);
@@ -562,7 +608,7 @@ app.put("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, res
     const item = await prisma.menuItem.update({
       where: { id: itemId },
       data: { name, description, price, category, available, hot, buttery, image },
-      include: { modifiers: true },
+      include: menuItemInclude,
     });
 
     broadcastEvent("menu:updated", item, item.buttery);
@@ -578,7 +624,6 @@ app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, 
   try {
     const { itemId } = req.params;
 
-    // Check if the menu item exists
     const menuItem = await prisma.menuItem.findUnique({
       where: { id: itemId }
     });
@@ -592,17 +637,10 @@ app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, 
       return;
     }
 
-    // Soft-delete: Set archived to true and append (ARCHIVED) to name
-    const archivedName = menuItem.name.includes('(ARCHIVED)')
-      ? menuItem.name
-      : `${menuItem.name} (ARCHIVED)`;
-
+    // Soft-delete: just set archived flag, preserve the original name
     await prisma.menuItem.update({
       where: { id: itemId },
-      data: {
-        archived: true,
-        name: archivedName,
-      }
+      data: { archived: true },
     });
 
     broadcastEvent("menu:deleted", { id: itemId }, menuItem.buttery);
@@ -624,11 +662,17 @@ app.delete("/api/menu/:itemId", requireAuth, requireAdmin, async (req: Request, 
 app.put("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { modifierId } = req.params;
-    const { name, description, price } = req.body;
+    const { name, description, price, modifierGroupId } = req.body;
+
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (price !== undefined) data.price = price;
+    if (modifierGroupId !== undefined) data.modifierGroupId = modifierGroupId || null;
 
     const modifier = await prisma.modifier.update({
       where: { id: modifierId },
-      data: { name, description, price },
+      data,
     });
 
     broadcastEvent("menu:updated", { id: req.params.itemId, modifierUpdated: modifier });
@@ -639,16 +683,181 @@ app.put("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, as
   }
 });
 
-// Admin only: Delete modifier
+// Admin only: Soft-delete modifier (archive instead of hard delete)
 app.delete("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { modifierId } = req.params;
-    await prisma.modifier.delete({ where: { id: modifierId } });
+    await prisma.modifier.update({
+      where: { id: modifierId },
+      data: { archived: true },
+    });
     broadcastEvent("menu:updated", { id: req.params.itemId, modifierDeleted: modifierId });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete modifier error:', error);
     res.status(500).json({ error: 'Failed to delete modifier' });
+  }
+});
+
+// ============================================
+// MODIFIER GROUP ROUTES (Admin only)
+// ============================================
+
+// Create modifier group for a menu item
+app.post("/api/menu/:itemId/modifier-groups", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { itemId } = req.params;
+    const { name, required, minSelections, maxSelections, displayOrder } = req.body;
+
+    if (!name) {
+      res.status(400).json({ error: "Name is required" });
+      return;
+    }
+
+    const group = await prisma.modifierGroup.create({
+      data: {
+        name,
+        menuItemId: itemId,
+        required: required || false,
+        minSelections: minSelections || 0,
+        maxSelections: maxSelections ?? null,
+        displayOrder: displayOrder || 0,
+      },
+      include: { modifiers: { where: { archived: false } } },
+    });
+
+    broadcastEvent("menu:updated", { id: itemId, modifierGroupCreated: group });
+    res.status(201).json(group);
+  } catch (error) {
+    console.error('Create modifier group error:', error);
+    res.status(500).json({ error: 'Failed to create modifier group' });
+  }
+});
+
+// Get all modifier groups for a menu item
+app.get("/api/menu/:itemId/modifier-groups", async (req: Request, res: Response) => {
+  try {
+    const { itemId } = req.params;
+    const groups = await prisma.modifierGroup.findMany({
+      where: { menuItemId: itemId },
+      include: { modifiers: { where: { archived: false } } },
+      orderBy: { displayOrder: "asc" },
+    });
+    res.json(groups);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch modifier groups" });
+  }
+});
+
+// Update a modifier group
+app.put("/api/menu/:itemId/modifier-groups/:groupId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { groupId } = req.params;
+    const { name, required, minSelections, maxSelections, displayOrder } = req.body;
+
+    const data: any = {};
+    if (name !== undefined) data.name = name;
+    if (required !== undefined) data.required = required;
+    if (minSelections !== undefined) data.minSelections = minSelections;
+    if (maxSelections !== undefined) data.maxSelections = maxSelections;
+    if (displayOrder !== undefined) data.displayOrder = displayOrder;
+
+    const group = await prisma.modifierGroup.update({
+      where: { id: groupId },
+      data,
+      include: { modifiers: { where: { archived: false } } },
+    });
+
+    broadcastEvent("menu:updated", { id: req.params.itemId, modifierGroupUpdated: group });
+    res.json(group);
+  } catch (error) {
+    console.error('Update modifier group error:', error);
+    res.status(500).json({ error: 'Failed to update modifier group' });
+  }
+});
+
+// Delete a modifier group (modifiers get unlinked via SET NULL)
+app.delete("/api/menu/:itemId/modifier-groups/:groupId", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { groupId } = req.params;
+    await prisma.modifierGroup.delete({ where: { id: groupId } });
+    broadcastEvent("menu:updated", { id: req.params.itemId, modifierGroupDeleted: groupId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete modifier group error:', error);
+    res.status(500).json({ error: 'Failed to delete modifier group' });
+  }
+});
+
+// ============================================
+// IMAGE UPLOAD (Supabase Storage)
+// ============================================
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const STORAGE_BUCKET = "menu-images";
+
+// Admin only: Upload a menu item image
+app.post("/api/upload/menu-image", requireAuth, requireAdmin, upload.single("image"), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "No image file provided" });
+      return;
+    }
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      res.status(500).json({ error: "Storage not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)" });
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      res.status(400).json({ error: "Invalid file type. Allowed: JPEG, PNG, WebP, GIF" });
+      return;
+    }
+
+    // Generate unique filename: timestamp-random.ext
+    const ext = req.file.originalname.split(".").pop() || "jpg";
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const storagePath = `${filename}`;
+
+    // Upload to Supabase Storage via REST API (service_role bypasses RLS)
+    const uploadResponse = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${storagePath}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": req.file.mimetype,
+          "x-upsert": "true",
+        },
+        body: req.file.buffer,
+      }
+    );
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error("Supabase Storage upload error:", errorText);
+      res.status(500).json({ error: "Failed to upload image to storage" });
+      return;
+    }
+
+    // Build public URL
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${storagePath}`;
+
+    // Optionally update a menu item if itemId is provided
+    const { itemId } = req.body;
+    if (itemId) {
+      await prisma.menuItem.update({
+        where: { id: itemId },
+        data: { image: publicUrl },
+      });
+    }
+
+    res.json({ url: publicUrl });
+  } catch (error) {
+    console.error("Image upload error:", error);
+    res.status(500).json({ error: "Failed to upload image" });
   }
 });
 

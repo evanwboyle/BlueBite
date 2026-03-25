@@ -137,13 +137,19 @@ All endpoints are defined in `backend/src/index.ts`:
 - `PATCH /api/menu/:itemId/toggle` - Toggle item availability (requires staff)
 
 **Modifiers:**
-- `POST /api/menu/:itemId/modifiers` - Create modifier (requires admin)
-- `GET /api/menu/:itemId/modifiers` - Get all modifiers for menu item
-- `PUT /api/menu/:itemId/modifiers/:modifierId` - Update modifier (requires admin)
-- `DELETE /api/menu/:itemId/modifiers/:modifierId` - Delete modifier (requires admin)
+- `POST /api/menu/:itemId/modifiers` - Create modifier (requires admin, optional `modifierGroupId`)
+- `GET /api/menu/:itemId/modifiers` - Get all non-archived modifiers for menu item
+- `PUT /api/menu/:itemId/modifiers/:modifierId` - Update modifier (requires admin, can set `modifierGroupId`)
+- `DELETE /api/menu/:itemId/modifiers/:modifierId` - Soft-delete modifier (sets archived=true, requires admin)
+
+**Modifier Groups:**
+- `POST /api/menu/:itemId/modifier-groups` - Create modifier group (requires admin)
+- `GET /api/menu/:itemId/modifier-groups` - Get all modifier groups with their modifiers
+- `PUT /api/menu/:itemId/modifier-groups/:groupId` - Update modifier group (requires admin)
+- `DELETE /api/menu/:itemId/modifier-groups/:groupId` - Delete modifier group (requires admin)
 
 **Orders:**
-- `POST /api/orders` - Create order with items (auto-creates user if needed)
+- `POST /api/orders` - Create order with items (snapshots item name, modifier name/price at order time)
 - `GET /api/orders` - Get all orders (optional `?buttery=` filter)
 - `GET /api/users/:netId/orders` - Get user's orders (optional `?buttery=` filter)
 - `PATCH /api/orders/:orderId` - Update order status
@@ -151,15 +157,19 @@ All endpoints are defined in `backend/src/index.ts`:
 **Butteries:**
 - `GET /api/butteries` - Get list of all butteries (grouped from menu items)
 
+**Image Upload:**
+- `POST /api/upload/menu-image` - Upload menu item image to Supabase Storage (requires admin, multipart form data)
+
 ## Database Schema (Prisma)
 
 **Key models in `backend/prisma/schema.prisma`:**
 - **User** - Identified by NetID (Yale unique identifier), role (customer/staff/admin)
-- **MenuItem** - Menu items with category, price, hot/cold flag, buttery association, availability
-- **Modifier** - Add-ons for menu items (many-to-one with MenuItem)
+- **MenuItem** - Menu items with category, price, hot/cold flag, buttery association, availability, archived (soft-delete)
+- **ModifierGroup** - Groups of modifiers with selection constraints (required, minSelections, maxSelections, displayOrder)
+- **Modifier** - Add-ons for menu items, optionally assigned to a ModifierGroup, soft-deletable (archived flag)
 - **Order** - User orders with status, totalPrice, buttery association
-- **OrderItem** - Junction table for Order ↔ MenuItem (quantity, price snapshot)
-- **OrderItemModifier** - Junction table for OrderItem ↔ Modifier (many-to-many)
+- **OrderItem** - Junction table for Order ↔ MenuItem (quantity, price snapshot, **name snapshot**)
+- **OrderItemModifier** - Junction table for OrderItem ↔ Modifier (**name and price snapshots** preserved at order time)
 
 **Order status flow**: `pending` → `preparing` → `ready` → `completed` (or `cancelled`)
 
@@ -291,6 +301,10 @@ Optional (Vite exposes these via `import.meta.env`):
 Required:
 - `DATABASE_URL` - PostgreSQL connection string (Supabase)
 - `DIRECT_URL` - Direct PostgreSQL connection (Supabase, bypasses connection pooler)
+
+Required for image uploads:
+- `SUPABASE_URL` - Supabase project URL (e.g., "https://xxx.supabase.co")
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key for storage uploads (NEVER expose to frontend)
 
 Optional:
 - `PORT` - Backend port (default: 3000)

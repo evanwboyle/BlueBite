@@ -8,7 +8,7 @@ interface CartModalProps {
   items: OrderItem[];
   onClose: () => void;
   onRemoveItem: (index: number) => void;
-  onCheckout: (netId: string) => void;
+  onCheckout: (netId: string, phone: string) => void;
 }
 
 export function CartModal({
@@ -18,6 +18,7 @@ export function CartModal({
   onCheckout,
 }: CartModalProps) {
   const [netId, setNetId] = useState('');
+  const [phone, setPhone] = useState('');
   const total = calculateCartTotal(items);
 
   const handlePlaceOrder = () => {
@@ -25,8 +26,9 @@ export function CartModal({
       alert('Please enter your NetID');
       return;
     }
-    onCheckout(netId);
+    onCheckout(netId, phone.trim());
     setNetId('');
+    setPhone('');
     onClose();
   };
 
@@ -116,6 +118,24 @@ export function CartModal({
                   }
                 }}
                 autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Phone number <span className="text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Ex. (203) 555-1234"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 text-white placeholder-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handlePlaceOrder();
+                  }
+                }}
               />
             </div>
 

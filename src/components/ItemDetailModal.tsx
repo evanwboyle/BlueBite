@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
-import { X, Plus, Minus, Trash2 } from 'lucide-react';
+import { X, Plus, Minus, Trash2, Upload, ImageIcon } from 'lucide-react';
 import { GlassPanel } from './ui';
 
 interface ItemDetailModalProps {
@@ -35,6 +35,9 @@ export function ItemDetailModal({
   const [editDescription, setEditDescription] = useState('');
   const [editAvailable, setEditAvailable] = useState(true);
   const [editHot, setEditHot] = useState(false);
+  const [editImage, setEditImage] = useState<string | undefined>(undefined);
+  const [imageUploading, setImageUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize edit state when item changes
   useEffect(() => {
@@ -45,6 +48,7 @@ export function ItemDetailModal({
       setEditDescription(item.description || '');
       setEditAvailable(!item.disabled);
       setEditHot(item.hot);
+      setEditImage(item.image);
     } else {
       // Creating new item - reset to defaults
       setEditName('');
@@ -53,6 +57,7 @@ export function ItemDetailModal({
       setEditDescription('');
       setEditAvailable(true);
       setEditHot(false);
+      setEditImage(undefined);
     }
   }, [item]);
 
@@ -62,11 +67,56 @@ export function ItemDetailModal({
   const canEditAll = isEditMode && isAdmin;
 
   // View mode calculations
-  const modifierPrice = item?.modifiers
+  const allModifiers = [
+    ...(item?.modifiers || []),
+    ...(item?.modifierGroups || []).flatMap(g => g.modifiers),
+  ];
+  const modifierPrice = allModifiers
     .filter(m => selectedModifiers.includes(m.name))
     .reduce((sum, m) => sum + m.price, 0) || 0;
 
   const totalPrice = item ? (item.price + modifierPrice) * quantity : 0;
+
+  // Determine which modifiers from item.modifiers are ungrouped (not in any group)
+  const groupedModifierIds = new Set(
+    (item?.modifierGroups || []).flatMap(g => g.modifiers.map(m => m.id))
+  );
+  const ungroupedModifiers = (item?.modifiers || []).filter(m => !groupedModifierIds.has(m.id));
+
+  // Count selected modifiers within a group
+  const getGroupSelectionCount = (groupModifiers: { name: string }[]) => {
+    const groupNames = new Set(groupModifiers.map(m => m.name));
+    return selectedModifiers.filter(name => groupNames.has(name)).length;
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      if (item?.id) formData.append('itemId', item.id);
+
+      const response = await fetch(`${API_BASE_URL}/upload/menu-image`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+
+      const { url } = await response.json();
+      setEditImage(url);
+    } catch (err) {
+      console.error('Image upload error:', err);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const handleToggleModifier = (modifierName: string) => {
     setSelectedModifiers(prev =>
@@ -76,8 +126,56 @@ export function ItemDetailModal({
     );
   };
 
+  const handleToggleGroupModifier = (modifierName: string, group: { required: boolean; maxSelections: number | null; modifiers: { name: string }[] }) => {
+    const groupNames = new Set(group.modifiers.map(m => m.name));
+    const isRadio = group.maxSelections === 1;
+
+    setSelectedModifiers(prev => {
+      const isSelected = prev.includes(modifierName);
+
+      if (isRadio) {
+        // Radio behavior
+        if (isSelected) {
+          // Clicking selected radio: deselect only if not required
+          if (group.required) return prev;
+          return prev.filter(m => m !== modifierName);
+        }
+        // Deselect others in group, select this one
+        return [...prev.filter(m => !groupNames.has(m)), modifierName];
+      }
+
+      // Checkbox behavior
+      if (isSelected) {
+        return prev.filter(m => m !== modifierName);
+      }
+
+      // Check if maxSelections reached
+      if (group.maxSelections !== null) {
+        const currentCount = prev.filter(m => groupNames.has(m)).length;
+        if (currentCount >= group.maxSelections) return prev;
+      }
+
+      return [...prev, modifierName];
+    });
+  };
+
   const handleAddToCart = () => {
     if (!item) return;
+
+    // Validate required modifier groups
+    const unmetGroups: string[] = [];
+    for (const group of item.modifierGroups || []) {
+      if (group.required) {
+        const count = getGroupSelectionCount(group.modifiers);
+        if (count < group.minSelections) {
+          unmetGroups.push(group.name);
+        }
+      }
+    }
+    if (unmetGroups.length > 0) {
+      alert(`Please make selections for: ${unmetGroups.join(', ')}`);
+      return;
+    }
 
     onAddToCart({
       menuItemId: item.id,
@@ -129,6 +227,7 @@ export function ItemDetailModal({
       description: editDescription.trim() || undefined,
       hot: editHot,
       disabled: !editAvailable,
+      image: editImage,
       modifiers: item?.modifiers || [],
     };
 
@@ -328,6 +427,45 @@ export function ItemDetailModal({
               />
             </div>
 
+            {/* Image Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Image
+              </label>
+              <div className="h-36 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg overflow-hidden border border-white/10 relative group">
+                {editImage ? (
+                  <img src={editImage} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500">
+                    <ImageIcon size={32} className="mb-2" />
+                    <span className="text-sm">No image</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imageUploading}
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                >
+                  {imageUploading ? (
+                    <span className="text-white text-sm">Uploading...</span>
+                  ) : (
+                    <div className="flex items-center gap-2 text-white text-sm">
+                      <Upload size={18} />
+                      <span>{editImage ? 'Change Image' : 'Upload Image'}</span>
+                    </div>
+                  )}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
             {/* Toggles */}
             <div className="grid grid-cols-2 gap-4">
               {/* Available Toggle */}
@@ -453,12 +591,78 @@ export function ItemDetailModal({
             <p className="text-3xl font-bold text-blue-400">${item.price.toFixed(2)}</p>
           </div>
 
-          {/* Modifiers */}
-          {item.modifiers.length > 0 && (
+          {/* Modifier Groups */}
+          {(item.modifierGroups || [])
+            .slice()
+            .sort((a, b) => a.displayOrder - b.displayOrder)
+            .map(group => {
+              const selectionCount = getGroupSelectionCount(group.modifiers);
+              const isRadio = group.maxSelections === 1;
+              const limitReached = group.maxSelections !== null && selectionCount >= group.maxSelections && !isRadio;
+              const unmet = group.required && selectionCount < group.minSelections;
+
+              return (
+                <div key={group.id}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-lg font-semibold text-white">{group.name}</h3>
+                    {group.required && (
+                      <span className="text-xs bg-red-500/20 text-red-400 rounded px-2 py-0.5 border border-red-500/30">
+                        Required
+                      </span>
+                    )}
+                    {!isRadio && group.maxSelections !== null && (
+                      <span className="text-xs text-gray-400">
+                        ({selectionCount}/{group.maxSelections} selected)
+                      </span>
+                    )}
+                  </div>
+                  {unmet && (
+                    <p className="text-xs text-red-400 mb-2">
+                      Please select at least {group.minSelections} option{group.minSelections > 1 ? 's' : ''}
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {group.modifiers.map(modifier => {
+                      const isSelected = selectedModifiers.includes(modifier.name);
+                      const isDisabled = !isSelected && limitReached;
+
+                      return (
+                        <label
+                          key={modifier.id}
+                          className={`flex items-center gap-3 p-3 glass-order-card rounded-lg transition ${
+                            isDisabled
+                              ? 'opacity-40 cursor-not-allowed'
+                              : 'hover:bg-white/10 cursor-pointer'
+                          }`}
+                        >
+                          <input
+                            type={isRadio ? 'radio' : 'checkbox'}
+                            name={isRadio ? `group-${group.id}` : undefined}
+                            checked={isSelected}
+                            disabled={isDisabled}
+                            onChange={() => handleToggleGroupModifier(modifier.name, group)}
+                            className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-white">{modifier.name}</p>
+                          </div>
+                          {modifier.price > 0 && (
+                            <p className="text-blue-400 font-semibold">+${modifier.price.toFixed(2)}</p>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+          {/* Ungrouped Modifiers */}
+          {ungroupedModifiers.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-white mb-3">Add-ons</h3>
               <div className="space-y-2">
-                {item.modifiers.map(modifier => (
+                {ungroupedModifiers.map(modifier => (
                   <label
                     key={modifier.id}
                     className="flex items-center gap-3 p-3 glass-order-card rounded-lg hover:bg-white/10 cursor-pointer transition"

@@ -9,8 +9,6 @@
   background: var(--glass-breath);
   border: 1px solid var(--border-color-default);
   color: var(--text-primary);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
   transition: all var(--duration-normal) var(--ease-glass);
   display: inline-flex;
   align-items: center;

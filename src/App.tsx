@@ -49,10 +49,12 @@ function App() {
   // instead of overwriting them with stale server state.
   const pendingOrderUpdates = useRef<Map<string, Order['status']>>(new Map());
 
-  // Ref for menuItems so SSE handler always has current data without
+  // Refs so SSE handler always has current data without
   // being in the useEffect dependency array (which would cause reconnects).
   const menuItemsRef = useRef<MenuItem[]>(menuItems);
   menuItemsRef.current = menuItems;
+  const ordersRef = useRef<Order[]>(orders);
+  ordersRef.current = orders;
 
   // Initialize on mount — fetch butteries and auth status in parallel
   useEffect(() => {
@@ -153,7 +155,11 @@ function App() {
 
         // CRITICAL: Enrich with current menu items (may have updated since cached orders)
         const enrichedOrders = enrichOrdersWithMenuNames(allOrders, menuItems);
-        setOrders(enrichedOrders);
+        // Preserve client-only fields (phone) from existing state
+        setOrders(prev => enrichedOrders.map(order => {
+          const existing = prev.find(o => o.id === order.id);
+          return existing?.phone ? { ...order, phone: existing.phone } : order;
+        }));
 
         // Update cache for next time
         storage.setCachedOrders(allOrders, selectedButtery);
@@ -186,13 +192,15 @@ function App() {
         orderDebounce = setTimeout(() => {
           api.fetchAllOrders(selectedButtery || undefined).then(freshOrders => {
             const enriched = enrichOrdersWithMenuNames(freshOrders, menuItemsRef.current);
-            // Preserve optimistic status for orders with in-flight mutations
+            // Preserve optimistic status and client-only fields (phone) for orders with in-flight mutations
             const merged = enriched.map(order => {
               const pendingStatus = pendingOrderUpdates.current.get(order.id);
-              if (pendingStatus) {
-                return { ...order, status: pendingStatus };
-              }
-              return order;
+              const existing = ordersRef.current.find(o => o.id === order.id);
+              return {
+                ...order,
+                ...(pendingStatus ? { status: pendingStatus } : {}),
+                ...(existing?.phone ? { phone: existing.phone } : {}),
+              };
             });
             setOrders(merged);
             storage.setCachedOrders(merged, selectedButtery);
@@ -234,7 +242,7 @@ function App() {
     storage.setCart({ items: newCart, total: calculateCartTotal(newCart) });
   };
 
-  const handleCheckout = async (netId: string) => {
+  const handleCheckout = async (netId: string, phone?: string) => {
     if (cartItems.length === 0) {
       setNotification('Cart is empty');
       return;
@@ -246,7 +254,8 @@ function App() {
         netId,
         cartItems,
         totalPrice,
-        selectedButtery || undefined
+        selectedButtery || undefined,
+        phone
       );
 
       const enrichedOrders = enrichOrdersWithMenuNames([newOrder], menuItems);
@@ -312,6 +321,15 @@ function App() {
       // 5. Unique ID for this update — use just the order ID so rapid changes
       // to the same order cancel the previous pending sync
       id: `order-${id}`,
+    });
+  };
+
+  const handleUpdateComments = (id: string, comments: string) => {
+    setOrders(prev => prev.map(o =>
+      o.id === id ? { ...o, comments } : o
+    ));
+    api.updateOrderComments(id, comments).catch((error) => {
+      console.error('Failed to update comments:', error);
     });
   };
 
@@ -523,7 +541,7 @@ function App() {
   if (popoutView === 'menu') {
     return (
       <div className="relative h-screen w-full overflow-hidden">
-        <MarbleBackground slow={6} />
+        {/* <MarbleBackground slow={6} /> */}
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
           <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
           <GlassPanel level="modal" className="flex-1 overflow-hidden" style={{ padding: 0 }}>
@@ -555,11 +573,11 @@ function App() {
   if (popoutView === 'orders') {
     return (
       <div className="relative h-screen w-full overflow-hidden">
-        <MarbleBackground slow={6} />
+        {/* <MarbleBackground slow={6} /> */}
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
           <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
           <div className="flex-1 overflow-hidden">
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
           </div>
         </div>
 
@@ -662,7 +680,7 @@ function App() {
           <div
             style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 19px)`, minWidth: 0 }}
           >
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
           </div>
         </div>
       </div>

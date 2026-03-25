@@ -1035,6 +1035,10 @@ const finalBlurMaterial = new THREE.ShaderMaterial({
 // ── Visibility-based rendering ──
 let isVisible = !document.hidden;
 document.addEventListener('visibilitychange', () => { isVisible = !document.hidden; });
+window.addEventListener('message', (e) => {
+  if (e.data === 'pause') isVisible = false;
+  else if (e.data === 'resume') isVisible = true;
+});
 
 // ── Animation Loop ──
 let prevTime = performance.now();

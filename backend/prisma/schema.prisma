@@ -18,23 +18,40 @@ model User {
 }
 
 model MenuItem {
-  id          String      @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  category    String
-  available   Boolean     @default(true)
-  hot         Boolean     @default(false)
-  buttery     String?
-  image       String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  archived    Boolean     @default(false)
-  modifiers   Modifier[]
-  orderItems  OrderItem[]
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  price          Float
+  category       String
+  available      Boolean         @default(true)
+  hot            Boolean         @default(false)
+  buttery        String?
+  image          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  archived       Boolean         @default(false)
+  modifiers      Modifier[]
+  modifierGroups ModifierGroup[]
+  orderItems     OrderItem[]
 
   @@index([buttery])
   @@index([archived])
+}
+
+model ModifierGroup {
+  id            String     @id @default(cuid())
+  name          String
+  menuItemId    String
+  required      Boolean    @default(false)
+  minSelections Int        @default(0)
+  maxSelections Int?
+  displayOrder  Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  menuItem      MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifiers     Modifier[]
+
+  @@index([menuItemId])
 }
 
 model Modifier {
@@ -43,12 +60,17 @@ model Modifier {
   description        String?
   price              Float
   menuItemId         String
+  modifierGroupId    String?
+  archived           Boolean             @default(false)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   menuItem           MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup      ModifierGroup?      @relation(fields: [modifierGroupId], references: [id], onDelete: SetNull)
   orderItemModifiers OrderItemModifier[]
 
   @@index([menuItemId])
+  @@index([modifierGroupId])
+  @@index([archived])
 }
 
 model Order {
@@ -57,6 +79,8 @@ model Order {
   buttery    String?
   status     String      @default("pending")
   totalPrice Float
+  comments   String?
+  phone      String?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   user       User        @relation(fields: [netId], references: [netId], onDelete: Cascade)
@@ -71,6 +95,7 @@ model OrderItem {
   id         String              @id @default(cuid())
   orderId    String
   menuItemId String
+  name       String?
   quantity   Int
   price      Float
   createdAt  DateTime            @default(now())
@@ -87,6 +112,8 @@ model OrderItemModifier {
   id          String    @id @default(cuid())
   orderItemId String
   modifierId  String
+  name        String?
+  price       Float?
   createdAt   DateTime  @default(now())
   modifier    Modifier  @relation(fields: [modifierId], references: [id], onDelete: Cascade)
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)

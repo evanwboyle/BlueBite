@@ -56,21 +56,19 @@ export const enrichOrdersWithMenuNames = (
         };
       }
 
-      // Lookup menu item by ID
+      // If item already has a snapshot name from the backend, keep it
+      if (item.name && item.name !== '' && item.name !== 'Unknown Item') {
+        return item;
+      }
+
+      // Otherwise try to enrich from current menu
       const menuItem = menuItemMap.get(item.menuItemId);
 
-      // If lookup succeeds, use menu item name
       if (menuItem?.name) {
         return {
           ...item,
           name: menuItem.name,
         };
-      }
-
-      // Lookup failed - use fallback logic with detailed logging
-      // Check if item already has a name (from previous enrichment or backend)
-      if (item.name && item.name !== 'Unknown Item') {
-        return item; // Keep existing name
       }
 
       // Track this failed lookup for summary logging

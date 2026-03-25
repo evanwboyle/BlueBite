@@ -5,6 +5,16 @@ export interface Modifier {
   description?: string;
 }
 
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number | null;
+  displayOrder: number;
+  modifiers: Modifier[];
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -16,6 +26,7 @@ export interface MenuItem {
   description?: string;
   buttery?: string | null;
   modifiers: Modifier[];
+  modifierGroups?: ModifierGroup[];
 }
 
 export interface OrderItem {
@@ -36,6 +47,8 @@ export interface Order {
   placedAt: number;
   completedAt?: number;
   specialInstructions?: string;
+  phone?: string;
+  comments?: string;
 }
 
 export interface User {
