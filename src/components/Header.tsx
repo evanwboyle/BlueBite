@@ -1,4 +1,4 @@
-import { Settings, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import { Settings, Maximize2, Minimize2, ExternalLink, MessageSquare } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import type { User } from '../types';
 import { GlassPanel } from './ui';
@@ -118,6 +118,16 @@ export function Header({ onSettingsClick, currentUser, selectedButtery }: Header
             </span>
           </div>
         )}
+        <a
+          href="https://docs.google.com/forms/d/e/1FAIpQLSdns6E4vlZEGxu37n7IlN6_lFoPPZ_j5C9umbJMLBwAkOAv2Q/viewform?usp=dialog"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="glass-button px-4 py-3 rounded-xl transition flex items-center gap-2 text-sm font-medium"
+          style={{ textDecoration: 'none', color: 'var(--text-primary)' }}
+        >
+          <MessageSquare size={20} />
+          <span>Feedback</span>
+        </a>
         <div className="relative" ref={popoutRef}>
           <button
             onClick={() => setPopoutOpen(!popoutOpen)}
