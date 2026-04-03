@@ -1,4 +1,4 @@
-import { Settings, Maximize2, Minimize2, ExternalLink, MessageSquare } from 'lucide-react';
+import { Settings, Maximize2, Minimize2, ExternalLink, MessageSquare, ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import type { User } from '../types';
 import { GlassPanel } from './ui';
@@ -8,6 +8,8 @@ interface HeaderProps {
   onSettingsClick: () => void;
   currentUser?: User | null;
   selectedButtery?: string | null;
+  butteryOptions?: Array<{ name: string; itemCount: number }>;
+  onButteryChange?: (buttery: string) => void;
 }
 
 function getRoleLabel(role?: string): string {
@@ -23,20 +25,25 @@ function getRoleLabel(role?: string): string {
   }
 }
 
-export function Header({ onSettingsClick, currentUser, selectedButtery }: HeaderProps) {
+export function Header({ onSettingsClick, currentUser, selectedButtery, butteryOptions, onButteryChange }: HeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [popoutOpen, setPopoutOpen] = useState(false);
+  const [butteryDropdownOpen, setButteryDropdownOpen] = useState(false);
   const popoutRef = useRef<HTMLDivElement>(null);
+  const butteryDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (popoutRef.current && !popoutRef.current.contains(e.target as Node)) {
         setPopoutOpen(false);
       }
+      if (butteryDropdownRef.current && !butteryDropdownRef.current.contains(e.target as Node)) {
+        setButteryDropdownOpen(false);
+      }
     };
-    if (popoutOpen) document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [popoutOpen]);
+  }, []);
 
   const handleFullscreenToggle = async () => {
     try {
@@ -57,7 +64,7 @@ export function Header({ onSettingsClick, currentUser, selectedButtery }: Header
       level="modal"
       as="div"
       className="relative flex items-center justify-between"
-      style={{ padding: '16px 24px' }}
+      style={{ padding: '16px 24px', zIndex: 20 }}
     >
       <div className="flex items-center gap-3">
         <h1
@@ -72,26 +79,104 @@ export function Header({ onSettingsClick, currentUser, selectedButtery }: Header
         </h1>
       </div>
 
-      {selectedButtery && (() => {
+      {selectedButtery && butteryOptions && onButteryChange && (() => {
         const crestPath = getCrestPath(selectedButtery);
         return (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
-            {crestPath && (
-              <img src={crestPath} alt="" className="h-8 w-8 object-contain" />
-            )}
-            <span
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" ref={butteryDropdownRef}>
+            <button
+              onClick={() => setButteryDropdownOpen(prev => !prev)}
+              className="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors"
               style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '2rem',
-                color: 'var(--text-primary)',
-                letterSpacing: '-0.01em',
-                whiteSpace: 'nowrap',
+                background: butteryDropdownOpen ? 'rgba(120, 180, 255, 0.12)' : 'transparent',
+                border: '1px solid',
+                borderColor: butteryDropdownOpen ? 'rgba(120, 180, 255, 0.35)' : 'rgba(120, 180, 255, 0.18)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => {
+                if (!butteryDropdownOpen) {
+                  e.currentTarget.style.background = 'rgba(120, 180, 255, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(120, 180, 255, 0.28)';
+                }
+              }}
+              onMouseLeave={e => {
+                if (!butteryDropdownOpen) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.borderColor = 'rgba(120, 180, 255, 0.18)';
+                }
               }}
             >
-              {selectedButtery}
-            </span>
-            {crestPath && (
-              <img src={crestPath} alt="" className="h-8 w-8 object-contain" />
+              {crestPath && (
+                <img src={crestPath} alt="" className="h-8 w-8 object-contain" />
+              )}
+              <span
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '2rem',
+                  color: 'var(--text-primary)',
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {selectedButtery}
+              </span>
+              {crestPath && (
+                <img src={crestPath} alt="" className="h-8 w-8 object-contain" />
+              )}
+              <ChevronDown
+                size={18}
+                style={{
+                  color: 'var(--text-secondary)',
+                  transform: butteryDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s',
+                  flexShrink: 0,
+                }}
+              />
+            </button>
+
+            {butteryDropdownOpen && (
+              <div
+                className="absolute left-1/2 -translate-x-1/2 top-full mt-2 rounded-xl overflow-hidden shadow-xl"
+                style={{
+                  background: 'var(--glass-fog)',
+                  backdropFilter: 'var(--blur-lg)',
+                  border: 'var(--border-glass-bright)',
+                  zIndex: 9999,
+                  minWidth: '220px',
+                }}
+              >
+                {butteryOptions.map((option, i) => {
+                  const optCrest = getCrestPath(option.name);
+                  const isSelected = option.name === selectedButtery;
+                  return (
+                    <div key={option.name}>
+                      {i > 0 && <div style={{ height: '1px', background: 'rgba(120, 180, 255, 0.08)' }} />}
+                      <button
+                        onClick={() => {
+                          onButteryChange(option.name);
+                          setButteryDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors text-left"
+                        style={{
+                          color: 'var(--text-primary)',
+                          background: isSelected ? 'rgba(120, 180, 255, 0.14)' : 'transparent',
+                        }}
+                        onMouseEnter={e => {
+                          if (!isSelected) e.currentTarget.style.background = 'rgba(120, 180, 255, 0.10)';
+                        }}
+                        onMouseLeave={e => {
+                          if (!isSelected) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        {optCrest
+                          ? <img src={optCrest} alt="" className="h-6 w-6 object-contain flex-shrink-0" />
+                          : <div className="h-6 w-6 flex-shrink-0" />
+                        }
+                        <span style={{ whiteSpace: 'nowrap' }}>{option.name}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         );
