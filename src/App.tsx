@@ -546,7 +546,7 @@ function App() {
       <div className="relative h-screen w-full overflow-hidden">
         {/* <MarbleBackground slow={6} /> */}
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
-          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
           <GlassPanel level="modal" className="flex-1 overflow-hidden" style={{ padding: 0 }}>
             <MenuGrid
               items={menuItems}
@@ -578,7 +578,7 @@ function App() {
       <div className="relative h-screen w-full overflow-hidden">
         {/* <MarbleBackground slow={6} /> */}
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
-          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
           <div className="flex-1 overflow-hidden">
             <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
           </div>
@@ -604,6 +604,8 @@ function App() {
           onSettingsClick={() => setIsSettingsOpen(true)}
           currentUser={currentUser}
           selectedButtery={selectedButtery}
+          butteryOptions={butteryOptions}
+          onButteryChange={handleButteryChange}
         />
 
         {/* Notification Overlay */}
