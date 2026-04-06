@@ -62,6 +62,7 @@ model Modifier {
   menuItemId         String
   modifierGroupId    String?
   archived           Boolean             @default(false)
+  available          Boolean             @default(true)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   menuItem           MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
-import { Plus, Pencil, ShoppingCart } from 'lucide-react';
+import { Plus, Pencil, ShoppingCart, X, Check } from 'lucide-react';
 import { ItemDetailModal } from './ItemDetailModal';
 import { GlassPanel } from './ui';
 
@@ -14,6 +14,7 @@ interface MenuGridProps {
   onDeleteMenuItem?: (id: string) => void;
   onUpdateMenuItem?: (id: string, updates: Partial<MenuItem>) => void;
   onCreateMenuItem?: (item: Omit<MenuItem, 'id'>) => void;
+  onToggleModifier?: (itemId: string, modifierId: string, available: boolean) => void;
 }
 
 export function MenuGrid({
@@ -25,7 +26,8 @@ export function MenuGrid({
   currentUser = null,
   onDeleteMenuItem,
   onUpdateMenuItem,
-  onCreateMenuItem
+  onCreateMenuItem,
+  onToggleModifier,
 }: MenuGridProps) {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isCreatingItem, setIsCreatingItem] = useState(false);
@@ -37,6 +39,11 @@ export function MenuGrid({
   const handleEditClick = (e: React.MouseEvent, item: MenuItem) => {
     e.stopPropagation();
     setSelectedItem(item);
+  };
+
+  const handleToggleDisabled = (e: React.MouseEvent, item: MenuItem) => {
+    e.stopPropagation();
+    onUpdateMenuItem?.(item.id, { disabled: !item.disabled });
   };
 
   const isAdminOrStaff = currentUser?.role === 'admin' || currentUser?.role === 'staff';
@@ -106,7 +113,7 @@ export function MenuGrid({
             </h3>
             <div className="flex flex-wrap gap-4">
               {items
-                .filter(item => item.category === category && !item.disabled)
+                .filter(item => item.category === category && (showEditControls || !item.disabled))
                 .map(item => (
                   <div
                     key={item.id}
@@ -117,7 +124,12 @@ export function MenuGrid({
                     <GlassPanel
                       level="surface"
                       className="h-full flex flex-col overflow-hidden"
-                      style={{ padding: 0, minHeight: '200px' }}
+                      style={{
+                        padding: 0,
+                        minHeight: '200px',
+                        opacity: item.disabled && showEditControls ? 0.5 : 1,
+                        transition: 'opacity 0.2s',
+                      }}
                     >
                       {/* Image */}
                       <div className="h-32 overflow-hidden relative rounded-t-xl">
@@ -126,6 +138,7 @@ export function MenuGrid({
                             src={item.image}
                             alt={item.name}
                             className="w-full h-full object-cover"
+                            style={{ filter: item.disabled && showEditControls ? 'grayscale(80%)' : 'none' }}
                           />
                         ) : (
                           <div
@@ -139,7 +152,7 @@ export function MenuGrid({
                         )}
 
                         {/* Hot badge */}
-                        {item.hot && (
+                        {item.hot && !item.disabled && (
                           <span
                             className="absolute top-3 right-3 text-xs font-semibold px-3 py-1.5 rounded-lg"
                             style={{
@@ -151,11 +164,24 @@ export function MenuGrid({
                           </span>
                         )}
 
-                        {/* Edit button overlay */}
+                        {/* Out of stock badge (edit mode only) */}
+                        {item.disabled && showEditControls && (
+                          <span
+                            className="absolute top-3 left-3 text-xs font-semibold px-2 py-1 rounded-lg"
+                            style={{
+                              background: 'rgba(100, 100, 100, 0.85)',
+                              color: '#ccc',
+                            }}
+                          >
+                            Off
+                          </span>
+                        )}
+
+                        {/* Edit (pencil) button — top-left in edit mode */}
                         {showEditControls && (
                           <button
                             onClick={(e) => handleEditClick(e, item)}
-                            className="absolute top-2 right-2 w-8 h-8 glass-button-primary text-blue-300 rounded-full flex items-center justify-center shadow-md transition transform hover:scale-110"
+                            className="absolute top-2 left-2 w-8 h-8 glass-button-primary text-blue-300 rounded-full flex items-center justify-center shadow-md transition transform hover:scale-110"
                             aria-label={`Edit ${item.name}`}
                           >
                             <Pencil size={14} />
@@ -170,7 +196,7 @@ export function MenuGrid({
                           style={{
                             fontWeight: 600,
                             fontSize: '0.9rem',
-                            color: 'var(--text-primary)',
+                            color: item.disabled && showEditControls ? 'var(--text-whisper)' : 'var(--text-primary)',
                           }}
                         >
                           {item.name}
@@ -178,7 +204,7 @@ export function MenuGrid({
                         <div className="flex items-center justify-between mt-2">
                           <span
                             style={{
-                              color: '#60a5fa',
+                              color: item.disabled && showEditControls ? '#6b7280' : '#60a5fa',
                               fontWeight: 700,
                               fontSize: '1.05rem',
                             }}
@@ -201,6 +227,36 @@ export function MenuGrid({
                         </div>
                       </div>
                     </GlassPanel>
+
+                    {/* Disable/enable toggle button — top-right corner of card */}
+                    {showEditControls && (
+                      <button
+                        onClick={(e) => handleToggleDisabled(e, item)}
+                        aria-label={item.disabled ? `Enable ${item.name}` : `Disable ${item.name}`}
+                        style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '-8px',
+                          width: '26px',
+                          height: '26px',
+                          borderRadius: '50%',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 10,
+                          background: item.disabled ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+                          color: '#fff',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                          transition: 'transform 0.15s, background 0.15s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.15)')}
+                        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                      >
+                        {item.disabled ? <Check size={14} /> : <X size={14} />}
+                      </button>
+                    )}
                   </div>
                 ))}
             </div>
@@ -220,6 +276,7 @@ export function MenuGrid({
           }}
           onUpdateMenuItem={onUpdateMenuItem}
           onDeleteMenuItem={onDeleteMenuItem}
+          onToggleModifier={onToggleModifier}
           onClose={() => setSelectedItem(null)}
         />
       )}
@@ -234,6 +291,7 @@ export function MenuGrid({
             onCreateMenuItem(item);
             setIsCreatingItem(false);
           }}
+          onToggleModifier={onToggleModifier}
           onClose={() => setIsCreatingItem(false)}
         />
       )}

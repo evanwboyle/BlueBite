@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Order, OrderItem, MenuItem, User } from './types';
+import type { Order, OrderItem, MenuItem, Modifier, User } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
@@ -406,6 +406,31 @@ function App() {
     });
   };
 
+  const handleToggleModifier = (itemId: string, modifierId: string, available: boolean) => {
+    const updateMod = (mod: Modifier) =>
+      mod.id === modifierId ? { ...mod, available } : mod;
+
+    setMenuItems(prev => {
+      const updated = prev.map(item => {
+        if (item.id !== itemId) return item;
+        return {
+          ...item,
+          modifiers: item.modifiers.map(updateMod),
+          modifierGroups: (item.modifierGroups || []).map(g => ({
+            ...g,
+            modifiers: g.modifiers.map(updateMod),
+          })),
+        };
+      });
+      storage.setCachedMenu(updated, selectedButtery);
+      return updated;
+    });
+
+    api.toggleModifier(itemId, modifierId, available).catch(err => {
+      console.error('Failed to toggle modifier:', err);
+    });
+  };
+
   const handleCreateMenuItem = (item: Omit<MenuItem, 'id'>) => {
     // Generate temporary ID for optimistic update
     const tempId = `temp-${Date.now()}`;
@@ -555,6 +580,7 @@ function App() {
               onUpdateMenuItem={handleUpdateMenuItem}
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
+              onToggleModifier={handleToggleModifier}
             />
           </GlassPanel>
         </div>
@@ -641,6 +667,7 @@ function App() {
               onUpdateMenuItem={handleUpdateMenuItem}
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
+              onToggleModifier={handleToggleModifier}
             />
           </GlassPanel>
 

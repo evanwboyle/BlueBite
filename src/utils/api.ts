@@ -8,6 +8,7 @@ interface BackendModifier {
   description: string | null;
   price: number;
   menuItemId: string;
+  available: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,6 +56,7 @@ function transformMenuItem(item: BackendMenuItem): MenuItem {
       name: m.name,
       price: m.price,
       description: m.description || undefined,
+      available: m.available,
     })),
     modifierGroups: (item.modifierGroups || []).map(g => ({
       id: g.id,
@@ -68,6 +70,7 @@ function transformMenuItem(item: BackendMenuItem): MenuItem {
         name: m.name,
         price: m.price,
         description: m.description || undefined,
+        available: m.available,
       })),
     })),
   };
@@ -472,6 +475,26 @@ export const api = {
       return transformMenuItem(backendItem);
     } catch (error) {
       console.error('API Error - Failed to toggle menu item:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Toggle modifier availability (staff+admin)
+   */
+  async toggleModifier(itemId: string, modifierId: string, available: boolean): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/menu/${itemId}/modifiers/${modifierId}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ available }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('API Error - Failed to toggle modifier:', error);
       throw error;
     }
   },

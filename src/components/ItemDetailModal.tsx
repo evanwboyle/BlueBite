@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
-import { X, Plus, Minus, Trash2, Upload, ImageIcon } from 'lucide-react';
+import { X, Plus, Minus, Trash2, Upload, ImageIcon, Check } from 'lucide-react';
 import { GlassPanel } from './ui';
 
 interface ItemDetailModalProps {
@@ -11,6 +11,7 @@ interface ItemDetailModalProps {
   onUpdateMenuItem?: (id: string, updates: Partial<MenuItem>) => void;
   onDeleteMenuItem?: (id: string) => void;
   onCreateMenuItem?: (item: Omit<MenuItem, 'id'>) => void;
+  onToggleModifier?: (itemId: string, modifierId: string, available: boolean) => void;
   onClose: () => void;
 }
 
@@ -22,6 +23,7 @@ export function ItemDetailModal({
   onUpdateMenuItem,
   onDeleteMenuItem,
   onCreateMenuItem,
+  onToggleModifier,
   onClose
 }: ItemDetailModalProps) {
   // View mode state (for adding to cart)
@@ -81,7 +83,7 @@ export function ItemDetailModal({
   const groupedModifierIds = new Set(
     (item?.modifierGroups || []).flatMap(g => g.modifiers.map(m => m.id))
   );
-  const ungroupedModifiers = (item?.modifiers || []).filter(m => !groupedModifierIds.has(m.id));
+  const ungroupedModifiers = (item?.modifiers || []).filter(m => !groupedModifierIds.has(m.id) && m.available !== false);
 
   // Count selected modifiers within a group
   const getGroupSelectionCount = (groupModifiers: { name: string }[]) => {
@@ -322,6 +324,60 @@ export function ItemDetailModal({
                   />
                 </button>
               </GlassPanel>
+
+              {/* Modifier Availability */}
+              {item && allModifiers.length > 0 && onToggleModifier && (
+                <div>
+                  <h3 className="font-semibold text-white mb-3">Modifier Availability</h3>
+                  <div className="space-y-2">
+                    {allModifiers.map(modifier => {
+                      const isAvailable = modifier.available !== false;
+                      return (
+                        <div
+                          key={modifier.id}
+                          className="flex items-center justify-between p-3 rounded-lg"
+                          style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            opacity: isAvailable ? 1 : 0.55,
+                          }}
+                        >
+                          <span
+                            className="text-sm font-medium"
+                            style={{ color: isAvailable ? 'var(--text-primary)' : 'var(--text-whisper)' }}
+                          >
+                            {modifier.name}
+                            {modifier.price > 0 && (
+                              <span className="ml-2 text-xs text-blue-400">+${modifier.price.toFixed(2)}</span>
+                            )}
+                          </span>
+                          <button
+                            onClick={() => onToggleModifier(item.id, modifier.id, !isAvailable)}
+                            aria-label={isAvailable ? `Disable ${modifier.name}` : `Enable ${modifier.name}`}
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '50%',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              background: isAvailable ? 'rgba(239, 68, 68, 0.85)' : 'rgba(34, 197, 94, 0.85)',
+                              color: '#fff',
+                              transition: 'transform 0.15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.15)')}
+                            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                          >
+                            {isAvailable ? <X size={13} /> : <Check size={13} />}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -508,6 +564,60 @@ export function ItemDetailModal({
                 </button>
               </GlassPanel>
             </div>
+
+            {/* Modifier Availability (admin modal) */}
+            {item && allModifiers.length > 0 && onToggleModifier && (
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">Modifier Availability</h3>
+                <div className="space-y-2">
+                  {allModifiers.map(modifier => {
+                    const isAvailable = modifier.available !== false;
+                    return (
+                      <div
+                        key={modifier.id}
+                        className="flex items-center justify-between p-3 rounded-lg"
+                        style={{
+                          background: 'rgba(255,255,255,0.04)',
+                          opacity: isAvailable ? 1 : 0.55,
+                        }}
+                      >
+                        <span
+                          className="text-sm font-medium"
+                          style={{ color: isAvailable ? 'var(--text-primary)' : 'var(--text-whisper)' }}
+                        >
+                          {modifier.name}
+                          {modifier.price > 0 && (
+                            <span className="ml-2 text-xs text-blue-400">+${modifier.price.toFixed(2)}</span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => onToggleModifier(item.id, modifier.id, !isAvailable)}
+                          aria-label={isAvailable ? `Disable ${modifier.name}` : `Enable ${modifier.name}`}
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '50%',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            background: isAvailable ? 'rgba(239, 68, 68, 0.85)' : 'rgba(34, 197, 94, 0.85)',
+                            color: '#fff',
+                            transition: 'transform 0.15s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.15)')}
+                          onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                        >
+                          {isAvailable ? <X size={13} /> : <Check size={13} />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -596,7 +706,9 @@ export function ItemDetailModal({
             .slice()
             .sort((a, b) => a.displayOrder - b.displayOrder)
             .map(group => {
-              const selectionCount = getGroupSelectionCount(group.modifiers);
+              const availableModifiers = group.modifiers.filter(m => m.available !== false);
+              if (availableModifiers.length === 0) return null;
+              const selectionCount = getGroupSelectionCount(availableModifiers);
               const isRadio = group.maxSelections === 1;
               const limitReached = group.maxSelections !== null && selectionCount >= group.maxSelections && !isRadio;
               const unmet = group.required && selectionCount < group.minSelections;
@@ -622,7 +734,7 @@ export function ItemDetailModal({
                     </p>
                   )}
                   <div className="space-y-2">
-                    {group.modifiers.map(modifier => {
+                    {availableModifiers.map(modifier => {
                       const isSelected = selectedModifiers.includes(modifier.name);
                       const isDisabled = !isSelected && limitReached;
 

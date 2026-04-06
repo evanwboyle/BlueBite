@@ -3,6 +3,7 @@ export interface Modifier {
   name: string;
   price: number;
   description?: string;
+  available?: boolean;
 }
 
 export interface ModifierGroup {

@@ -699,6 +699,30 @@ app.delete("/api/menu/:itemId/modifiers/:modifierId", requireAuth, requireAdmin,
   }
 });
 
+// Staff + Admin: Toggle modifier availability
+app.patch("/api/menu/:itemId/modifiers/:modifierId/toggle", requireAuth, requireStaff, async (req: Request, res: Response) => {
+  try {
+    const { modifierId, itemId } = req.params;
+    const { available } = req.body;
+
+    if (typeof available !== 'boolean') {
+      res.status(400).json({ error: 'available must be a boolean' });
+      return;
+    }
+
+    const modifier = await prisma.modifier.update({
+      where: { id: modifierId },
+      data: { available },
+    });
+
+    broadcastEvent("menu:updated", { id: itemId, modifierToggled: modifier });
+    res.json(modifier);
+  } catch (error) {
+    console.error('Toggle modifier error:', error);
+    res.status(500).json({ error: 'Failed to toggle modifier availability' });
+  }
+});
+
 // ============================================
 // MODIFIER GROUP ROUTES (Admin only)
 // ============================================
