@@ -1,4 +1,4 @@
-import type { MenuItem, Order, OrderItem } from '../types';
+import type { MenuItem, Order, OrderItem, Payment } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -209,6 +209,75 @@ export const api = {
       console.error('API Error - Failed to create order:', error);
       throw error;
     }
+  },
+
+  /**
+   * Send the sale request for an order to the payment device (Clover "tap to
+   * pay", or the mock simulator in dev). The order is not visible to the
+   * kitchen until this succeeds.
+   */
+  async initiatePayment(orderId: string): Promise<Payment> {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  /**
+   * Poll the current payment status for an order. SSE (`payment:updated`) is
+   * the primary channel - this is the fallback if that connection drops.
+   */
+  async getPaymentStatus(orderId: string): Promise<Payment | null> {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/payment`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  /**
+   * Cancel an in-progress payment request (customer backs out, or it's stuck).
+   */
+  async cancelPayment(orderId: string): Promise<Payment> {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/payment/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  /**
+   * Admin-only escape hatch: release an order to the kitchen without a
+   * confirmed device payment (e.g. the terminal is down). Every use is
+   * logged server-side with the admin's NetID and the given reason.
+   */
+  async bypassPayment(orderId: string, reason?: string): Promise<Payment> {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/payment/bypass`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ reason }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response.json();
   },
 
   /**

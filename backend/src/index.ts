@@ -8,6 +8,8 @@ import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
+import { orderCreateLimiter } from "./middleware/rateLimit";
+import { createPaymentsRouter } from "./routes/payments";
 
 dotenv.config();
 
@@ -345,19 +347,22 @@ app.get("/api/menu/:itemId/modifiers", async (req: Request, res: Response) => {
   }
 });
 
-// Create a new order with items (auto-creates user if doesn't exist)
-app.post("/api/orders", async (req: Request, res: Response) => {
+// Create a new order with items (auto-creates user if doesn't exist).
+// The order starts in "awaiting_payment" and is only released to the kitchen
+// queue (status "pending") once a Payment attempt succeeds - see
+// routes/payments.ts. Rate-limited to blunt spam/abuse of the payment flow.
+app.post("/api/orders", orderCreateLimiter, async (req: Request, res: Response) => {
   try {
-    const { netId, totalPrice, buttery, phone, items } = req.body as {
+    const { netId, buttery, phone, items } = req.body as {
       netId: string;
-      totalPrice: number;
+      totalPrice?: number;
       buttery?: string;
       phone?: string;
       items?: Array<{ menuItemId: string; quantity: number; price: number; modifiers?: string[] }>;
     };
 
-    if (!netId || typeof totalPrice !== "number") {
-      res.status(400).json({ error: "Missing required fields: netId and totalPrice" });
+    if (!netId) {
+      res.status(400).json({ error: "Missing required field: netId" });
       return;
     }
 
@@ -368,9 +373,14 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       create: { netId, role: "customer" },
     });
 
-    // Build order items with snapshot data
+    // Build order items with snapshot data. Price is always recomputed from the
+    // current menu item + modifier prices (never trusted from the client) since
+    // this total is what gets charged to the card.
+    let computedTotal = 0;
     const orderItemsData = await Promise.all((items || []).map(async (item) => {
-      // Fetch menu item for name snapshot
+      const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+      // Fetch menu item for name + price snapshot
       const menuItem = await prisma.menuItem.findUnique({
         where: { id: item.menuItemId },
       });
@@ -394,11 +404,14 @@ app.post("/api/orders", async (req: Request, res: Response) => {
         }));
       }
 
+      const unitPrice = (menuItem?.price ?? 0) + modifierCreates.reduce((sum, m) => sum + m.price, 0);
+      computedTotal += unitPrice * quantity;
+
       return {
         menuItemId: item.menuItemId,
         name: menuItem?.name || "Unknown Item",
-        quantity: item.quantity,
-        price: item.price,
+        quantity,
+        price: unitPrice,
         modifiers: {
           create: modifierCreates,
         },
@@ -408,10 +421,10 @@ app.post("/api/orders", async (req: Request, res: Response) => {
     const order = await prisma.order.create({
       data: {
         netId,
-        totalPrice,
+        totalPrice: computedTotal,
         buttery: buttery || null,
         phone: phone || null,
-        status: "pending",
+        status: "awaiting_payment",
         orderItems: {
           create: orderItemsData,
         },
@@ -429,14 +442,17 @@ app.post("/api/orders", async (req: Request, res: Response) => {
       },
     });
     broadcastEvent("order:created", order, order.buttery);
-    const loggedInUser = req.user as { netId?: string } | undefined;
-    syncOrderToSheet(order, loggedInUser?.netId);
+    // Note: Google Sheets sync happens once payment succeeds (see routes/payments.ts),
+    // not here - an unpaid order shouldn't show up in staff-facing tracking sheets.
     res.status(201).json(order);
   } catch (error) {
     console.error("Order creation error:", error);
     res.status(500).json({ error: "Failed to create order" });
   }
 });
+
+// Payment routes (send sale request to device, poll status, cancel, admin bypass) - see routes/payments.ts
+app.use("/api/orders", createPaymentsRouter({ prisma, broadcastEvent, syncOrderToSheet }));
 
 // Get all orders (with optional buttery filter)
 app.get("/api/orders", async (req: Request, res: Response) => {

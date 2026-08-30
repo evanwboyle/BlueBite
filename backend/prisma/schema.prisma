@@ -77,7 +77,10 @@ model Order {
   id         String      @id @default(cuid())
   netId      String
   buttery    String?
-  status     String      @default("pending")
+  // pending -> preparing -> ready -> completed (or cancelled).
+  // awaiting_payment / payment_failed are payment-gate states before an order
+  // is released to the kitchen queue - see backend/src/services/payments.
+  status     String      @default("awaiting_payment")
   totalPrice Float
   comments   String?
   phone      String?
@@ -85,10 +88,58 @@ model Order {
   updatedAt  DateTime    @updatedAt
   user       User        @relation(fields: [netId], references: [netId], onDelete: Cascade)
   orderItems OrderItem[]
+  payment    Payment?
 
   @@index([netId])
   @@index([status])
   @@index([buttery])
+}
+
+// One payment attempt lifecycle per order. A failed/cancelled attempt can be
+// retried, which resets this same row rather than creating a new one, so the
+// order <-> payment relationship stays 1:1 and the audit trail (PaymentEvent)
+// accumulates across retries.
+model Payment {
+  id                String         @id @default(cuid())
+  orderId           String         @unique
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider          String // "clover" | "mock" | "bypass"
+  // requested -> awaiting_device -> succeeded | failed | cancelled | error | expired
+  // "bypassed" is the admin/debug escape hatch (see requireAdmin-gated bypass route).
+  status            String         @default("requested")
+  amount            Float
+  currency          String         @default("USD")
+  // Idempotency key we generate and hand to the provider so a retried network
+  // call can never create two device charges for the same attempt.
+  externalPaymentId String         @unique
+  providerRef       String? // Clover payment ID / device transaction ID
+  requestedByNetId  String?
+  bypassedByNetId   String?
+  bypassReason      String?
+  errorMessage      String?
+  rawResult         Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  events            PaymentEvent[]
+
+  @@index([status])
+}
+
+// Append-only audit log for every payment lifecycle transition (requested,
+// device response, cancellation, admin bypass, error). Kept even across
+// retries of the same Payment row so there is a full record of what happened.
+model PaymentEvent {
+  id        String   @id @default(cuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  type      String
+  actor     String? // netId, "system", "device", or "admin:<netId>"
+  message   String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([createdAt])
 }
 
 model OrderItem {
