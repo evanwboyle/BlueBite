@@ -3,6 +3,7 @@ import type { Order, OrderItem, MenuItem, User } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
+import { PaymentModal } from './components/PaymentModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HelpModal } from './components/HelpModal';
 import { OrderManager } from './components/OrderManager';
@@ -34,6 +35,7 @@ function App() {
   });
   const [notification, setNotification] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
   const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
@@ -271,8 +273,7 @@ function App() {
       setCartItems([]);
       storage.setCart({ items: [], total: 0 });
       setIsCartOpen(false);
-      setNotification(`Order ${newOrder.id} placed!`);
-      setTimeout(() => setNotification(null), 3000);
+      setPaymentOrder(enrichedOrders[0]);
     } catch (error) {
       console.error('Failed to create order:', error);
       setNotification('Failed to place order');
@@ -565,6 +566,9 @@ function App() {
         {isCartOpen && (
           <CartModal items={cartItems} onClose={() => setIsCartOpen(false)} onRemoveItem={handleRemoveFromCart} onCheckout={handleCheckout} />
         )}
+        {paymentOrder && (
+          <PaymentModal order={paymentOrder} onClose={() => setPaymentOrder(null)} />
+        )}
         {isSettingsOpen && (
           <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} isBackgroundPaused={isBackgroundPaused} onToggleBackground={(paused) => setIsBackgroundPaused(paused)} />
         )}
@@ -698,6 +702,10 @@ function App() {
           onRemoveItem={handleRemoveFromCart}
           onCheckout={handleCheckout}
         />
+      )}
+
+      {paymentOrder && (
+        <PaymentModal order={paymentOrder} onClose={() => setPaymentOrder(null)} />
       )}
 
       {isSettingsOpen && (

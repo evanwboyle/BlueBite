@@ -37,18 +37,47 @@ export interface OrderItem {
   modifiers: string[];
 }
 
+export type OrderStatus =
+  | 'awaiting_payment'
+  | 'payment_failed'
+  | 'pending'
+  | 'preparing'
+  | 'ready'
+  | 'completed'
+  | 'cancelled';
+
 export interface Order {
   id: string;
   netId: string;
   buttery?: string | null;
   items: OrderItem[];
   totalPrice: number;
-  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+  status: OrderStatus;
   placedAt: number;
   completedAt?: number;
   specialInstructions?: string;
   phone?: string;
   comments?: string;
+}
+
+export type PaymentStatus =
+  | 'requested'
+  | 'awaiting_device'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'error'
+  | 'expired'
+  | 'bypassed';
+
+export interface Payment {
+  id: string;
+  orderId: string;
+  provider: string;
+  status: PaymentStatus;
+  amount: number;
+  currency: string;
+  errorMessage?: string | null;
 }
 
 export interface User {

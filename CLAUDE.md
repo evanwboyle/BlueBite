@@ -149,10 +149,17 @@ All endpoints are defined in `backend/src/index.ts`:
 - `DELETE /api/menu/:itemId/modifier-groups/:groupId` - Delete modifier group (requires admin)
 
 **Orders:**
-- `POST /api/orders` - Create order with items (snapshots item name, modifier name/price at order time)
+- `POST /api/orders` - Create order with items (snapshots item name, modifier name/price at order time). Order starts in `awaiting_payment` - server recomputes the total from current menu/modifier prices, ignoring any client-supplied total.
 - `GET /api/orders` - Get all orders (optional `?buttery=` filter)
 - `GET /api/users/:netId/orders` - Get user's orders (optional `?buttery=` filter)
 - `PATCH /api/orders/:orderId` - Update order status
+
+**Payments (Clover) - see `documentation/CLOVER_PAYMENTS.md`:**
+- `POST /api/orders/:orderId/payment` - Send the sale request to the payment device (or mock simulator)
+- `GET /api/orders/:orderId/payment` - Poll payment status (SSE `payment:updated` is primary)
+- `POST /api/orders/:orderId/payment/cancel` - Cancel an in-progress payment
+- `POST /api/orders/:orderId/payment/bypass` - Admin-only escape hatch (logs admin NetID + reason)
+- `POST /api/orders/:orderId/payment/simulate` - Debug-only (mock provider + `PAYMENTS_DEBUG_MODE=true`)
 
 **Butteries:**
 - `GET /api/butteries` - Get list of all butteries (grouped from menu items)
@@ -171,7 +178,7 @@ All endpoints are defined in `backend/src/index.ts`:
 - **OrderItem** - Junction table for Order ↔ MenuItem (quantity, price snapshot, **name snapshot**)
 - **OrderItemModifier** - Junction table for OrderItem ↔ Modifier (**name and price snapshots** preserved at order time)
 
-**Order status flow**: `pending` → `preparing` → `ready` → `completed` (or `cancelled`)
+**Order status flow**: `awaiting_payment` → `pending` → `preparing` → `ready` → `completed` (or `payment_failed`/`cancelled`). An order only leaves `awaiting_payment` once a Payment succeeds (or an admin bypasses it) - see `documentation/CLOVER_PAYMENTS.md`.
 
 ## Authentication & Authorization
 

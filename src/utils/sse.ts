@@ -3,6 +3,7 @@ import { API_BASE_URL } from './config';
 export type SSEEventType =
   | 'order:created'
   | 'order:updated'
+  | 'payment:updated'
   | 'menu:created'
   | 'menu:updated'
   | 'menu:deleted';
@@ -40,6 +41,7 @@ export function connectSSE(
   const eventTypes: SSEEventType[] = [
     'order:created',
     'order:updated',
+    'payment:updated',
     'menu:created',
     'menu:updated',
     'menu:deleted',
