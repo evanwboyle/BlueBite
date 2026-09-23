@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Order } from '../types';
-import { ChevronUp, RotateCcw, Lock, LockOpen, Eye, EyeOff, Phone, MessageSquare } from 'lucide-react';
+import { RotateCcw, Lock, LockOpen, Eye, EyeOff, Phone, MessageSquare } from 'lucide-react';
 import { yalies, type YaliesUser } from '../utils/yalies';
 import { yaliesCache } from '../utils/yaliesCache';
 import { GlassPanel } from './ui';
@@ -213,6 +213,10 @@ export function OrderManager({ orders, onUpdateOrder, onUpdateComments }: OrderM
 
   const getStatusButtons = (order: Order) => {
     const transitions: Record<Order['status'], Order['status'][]> = {
+      // Payment-gated states aren't staff-actionable from here - they resolve
+      // via the payment flow itself (device response, or an admin bypass).
+      awaiting_payment: [],
+      payment_failed: [],
       pending: ['preparing', 'cancelled'],
       preparing: ['ready', 'pending'],
       ready: ['completed', 'pending'],

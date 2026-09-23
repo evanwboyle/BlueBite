@@ -10,6 +10,8 @@ interface SettingsModalProps {
   onUserLogout: () => void;
   isEditMode: boolean;
   onToggleEditMode: (enabled: boolean) => void;
+  isBackgroundPaused: boolean;
+  onToggleBackground: (paused: boolean) => void;
 }
 
 export function SettingsModal({
@@ -19,6 +21,8 @@ export function SettingsModal({
   onUserLogout,
   isEditMode,
   onToggleEditMode,
+  isBackgroundPaused,
+  onToggleBackground,
 }: SettingsModalProps) {
 
   if (!isOpen) return null;
@@ -126,6 +130,34 @@ export function SettingsModal({
                   Login with Yale CAS
                 </button>
               )}
+            </div>
+
+            {/* Appearance Section */}
+            <div className="space-y-4 border-t border-white/10 pt-6">
+              <h3 className="text-lg font-semibold text-white">Appearance</h3>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div className="flex-1">
+                    <span className="font-medium text-white">Animated Background</span>
+                    <p className="text-xs text-gray-400">Pause or resume the marble background animation</p>
+                  </div>
+                </label>
+                <button
+                  onClick={() => onToggleBackground(!isBackgroundPaused)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    !isBackgroundPaused ? 'bg-slate-700' : 'bg-slate-400'
+                  }`}
+                  role="switch"
+                  aria-checked={!isBackgroundPaused}
+                  aria-label="Toggle animated background"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      !isBackgroundPaused ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
 
           </div>

@@ -3,7 +3,9 @@ import type { Order, OrderItem, MenuItem, Modifier, User } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
+import { PaymentModal } from './components/PaymentModal';
 import { SettingsModal } from './components/SettingsModal';
+import { HelpModal } from './components/HelpModal';
 import { OrderManager } from './components/OrderManager';
 import { LoginPage } from './components/LoginPage';
 import { ButterySelectionPage } from './components/ButterySelectionPage';
@@ -33,6 +35,7 @@ function App() {
   });
   const [notification, setNotification] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(65);
   const [selectedButtery, setSelectedButtery] = useState<string | null>(() => storage.getSelectedButtery());
@@ -43,6 +46,8 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isBackgroundPaused, setIsBackgroundPaused] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Track orders with in-flight optimistic mutations.
   // SSE re-fetches will preserve the optimistic status for these orders
@@ -268,8 +273,7 @@ function App() {
       setCartItems([]);
       storage.setCart({ items: [], total: 0 });
       setIsCartOpen(false);
-      setNotification(`Order ${newOrder.id} placed!`);
-      setTimeout(() => setNotification(null), 3000);
+      setPaymentOrder(enrichedOrders[0]);
     } catch (error) {
       console.error('Failed to create order:', error);
       setNotification('Failed to place order');
@@ -568,7 +572,7 @@ function App() {
       <div className="relative h-screen w-full overflow-hidden">
         {/* <MarbleBackground slow={6} /> */}
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
-          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
           <GlassPanel level="modal" className="flex-1 overflow-hidden" style={{ padding: 0 }}>
             <MenuGrid
               items={menuItems}
@@ -588,8 +592,11 @@ function App() {
         {isCartOpen && (
           <CartModal items={cartItems} onClose={() => setIsCartOpen(false)} onRemoveItem={handleRemoveFromCart} onCheckout={handleCheckout} />
         )}
+        {paymentOrder && (
+          <PaymentModal order={paymentOrder} onClose={() => setPaymentOrder(null)} />
+        )}
         {isSettingsOpen && (
-          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} />
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} isBackgroundPaused={isBackgroundPaused} onToggleBackground={(paused) => setIsBackgroundPaused(paused)} />
         )}
       </div>
     );
@@ -601,14 +608,14 @@ function App() {
       <div className="relative h-screen w-full overflow-hidden">
         {/* <MarbleBackground slow={6} /> */}
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
-          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} />
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
           <div className="flex-1 overflow-hidden">
             <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
           </div>
         </div>
 
         {isSettingsOpen && (
-          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} />
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} currentUser={currentUser} onUserLogout={() => { setCurrentUser(null); setSelectedButtery(null); storage.setSelectedButtery(null); }} isEditMode={isEditMode} onToggleEditMode={(enabled) => setIsEditMode(enabled)} isBackgroundPaused={isBackgroundPaused} onToggleBackground={(paused) => setIsBackgroundPaused(paused)} />
         )}
       </div>
     );
@@ -618,7 +625,7 @@ function App() {
   return (
     <div className="relative h-screen w-full overflow-hidden">
       {/* Marble background */}
-      <MarbleBackground slow={6} />
+      <MarbleBackground slow={6} paused={isBackgroundPaused} />
 
       {/* Content layer — generous padding so panels float over the marble background */}
       <div className="relative h-full flex flex-col gap-4" style={{ zIndex: 10, padding: 'clamp(24px, 4vw, 72px)' }}>
@@ -627,6 +634,8 @@ function App() {
           onSettingsClick={() => setIsSettingsOpen(true)}
           currentUser={currentUser}
           selectedButtery={selectedButtery}
+          butteryOptions={butteryOptions}
+          onButteryChange={handleButteryChange}
         />
 
         {/* Notification Overlay */}
@@ -722,6 +731,10 @@ function App() {
         />
       )}
 
+      {paymentOrder && (
+        <PaymentModal order={paymentOrder} onClose={() => setPaymentOrder(null)} />
+      )}
+
       {isSettingsOpen && (
         <SettingsModal
           isOpen={isSettingsOpen}
@@ -734,8 +747,48 @@ function App() {
             }}
           isEditMode={isEditMode}
           onToggleEditMode={(enabled) => setIsEditMode(enabled)}
+          isBackgroundPaused={isBackgroundPaused}
+          onToggleBackground={(paused) => setIsBackgroundPaused(paused)}
         />
       )}
+
+      {/* Help button */}
+      <button
+        onClick={() => setIsHelpOpen(true)}
+        aria-label="Help"
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 50,
+          width: 36,
+          height: 36,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(10, 22, 44, 0.7)',
+          border: '1px solid rgba(100, 170, 255, 0.25)',
+          borderRadius: '50%',
+          color: 'rgba(255, 255, 255, 0.6)',
+          cursor: 'pointer',
+          backdropFilter: 'blur(8px)',
+          fontSize: 16,
+          fontWeight: 600,
+          transition: 'color 0.2s, border-color 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = 'rgba(255,255,255,0.9)';
+          e.currentTarget.style.borderColor = 'rgba(100,170,255,0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
+          e.currentTarget.style.borderColor = 'rgba(100,170,255,0.25)';
+        }}
+      >
+        ?
+      </button>
+
+      {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     </div>
   );
 }
