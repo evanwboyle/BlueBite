@@ -678,16 +678,12 @@ export function ItemDetailModal({
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Image */}
-          <div className="h-48 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg overflow-hidden border border-white/10">
-            {item.image ? (
+          {/* Image (optional - only shown when the buttery has added one) */}
+          {item.image && (
+            <div className="h-48 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg overflow-hidden border border-white/10">
               <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-500">
-                <span>No image available</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Item Info */}
           <div>

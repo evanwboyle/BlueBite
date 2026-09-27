@@ -5,6 +5,8 @@ interface Cart {
   total: number;
 }
 
+export type MenuView = 'list' | 'grid';
+
 interface CachedData<T> {
   data: T;
   timestamp: number;
@@ -156,6 +158,17 @@ export const storage = {
     } else {
       localStorage.setItem('bluebite_selected_buttery', buttery);
     }
+  },
+
+  // Menu layout preference. null means the user hasn't picked one, so the
+  // menu chooses automatically based on whether items have images.
+  getMenuView: (): MenuView | null => {
+    const view = localStorage.getItem('bluebite_menu_view');
+    return view === 'grid' || view === 'list' ? view : null;
+  },
+
+  setMenuView: (view: MenuView): void => {
+    localStorage.setItem('bluebite_menu_view', view);
   },
 
   // Cache management for menu items
