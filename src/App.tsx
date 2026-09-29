@@ -62,24 +62,15 @@ function App() {
   const ordersRef = useRef<Order[]>(orders);
   ordersRef.current = orders;
 
-  // Learn what the backend supports (e.g. no menu editing when the Google Sheet is the store)
+  // Every API call except the login check needs a session, so nothing else runs until we know who the user is.
+  // Learn what the backend supports (e.g. no menu editing when the Google Sheet is the store).
   useEffect(() => {
+    if (!currentUser) return;
     api.fetchServerConfig().then(setServerConfig);
-  }, []);
+  }, [currentUser]);
 
-  // Initialize on mount — fetch butteries and auth status in parallel
+  // Initialize on mount — check auth status
   useEffect(() => {
-    const fetchButteries = async () => {
-      try {
-        const butteries = await api.fetchButteries();
-        setButteryOptions(butteries);
-        // Cache just the buttery names for instant display next time
-        storage.setCachedButteryNames(butteries.map(b => b.name));
-      } catch (err) {
-        console.error('Failed to fetch butteries:', err);
-      }
-    };
-
     const fetchAuth = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/user`, {
@@ -96,9 +87,25 @@ function App() {
       }
     };
 
-    fetchButteries();
     fetchAuth();
   }, []);
+
+  // Butteries, once logged in
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchButteries = async () => {
+      try {
+        const butteries = await api.fetchButteries();
+        setButteryOptions(butteries);
+        // Cache just the buttery names for instant display next time
+        storage.setCachedButteryNames(butteries.map(b => b.name));
+      } catch (err) {
+        console.error('Failed to fetch butteries:', err);
+      }
+    };
+
+    fetchButteries();
+  }, [currentUser]);
 
   // Load menu items when buttery changes - with progressive caching
   useEffect(() => {
@@ -134,8 +141,8 @@ function App() {
       }
     };
 
-    loadMenuItems();
-  }, [selectedButtery]);
+    if (currentUser) loadMenuItems();
+  }, [selectedButtery, currentUser]);
 
   // Fetch all orders (staff/admin view) after menu items are loaded - with progressive caching
   useEffect(() => {
@@ -188,14 +195,16 @@ function App() {
       }
     };
 
-    loadOrders();
-  }, [menuItems, selectedButtery]);
+    if (currentUser) loadOrders();
+  }, [menuItems, selectedButtery, currentUser]);
 
   // SSE: Real-time updates from the backend
   useEffect(() => {
     // Debounce timers — coalesce rapid SSE events into a single re-fetch
     let orderDebounce: ReturnType<typeof setTimeout> | null = null;
     let menuDebounce: ReturnType<typeof setTimeout> | null = null;
+
+    if (!currentUser) return;
 
     const connection = connectSSE(selectedButtery, (type: SSEEventType) => {
       if (type === 'order:created' || type === 'order:updated') {
@@ -237,7 +246,7 @@ function App() {
       if (menuDebounce) clearTimeout(menuDebounce);
       connection.close();
     };
-  }, [selectedButtery]);
+  }, [selectedButtery, currentUser]);
 
   const handleAddToCart = (item: OrderItem) => {
     const newCart = [...cartItems, item];

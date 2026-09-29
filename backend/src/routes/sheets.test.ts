@@ -237,8 +237,8 @@ test("hand-typed rows cannot be charged", async () => {
 
 test("webhook requires the shared secret and triggers a refresh", async () => {
   const { call, sheets, mirror } = await ctx();
-  assert.equal((await call("POST", "/api/sheets/webhook", {})).status, 401);
-  assert.equal((await call("POST", "/api/sheets/webhook", {}, { "x-webhook-secret": "wrong" })).status, 401);
+  assert.equal((await call("POST", "/api/sheets/webhook", {})).status, 404);
+  assert.equal((await call("POST", "/api/sheets/webhook", {}, { "x-webhook-secret": "wrong" })).status, 404);
 
   const before = sheets.reads;
   sheets.set("Menu", [MENU_HEADER, ["Fries", "", 9, "Sides", true, false, "", false]]);

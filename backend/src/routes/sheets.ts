@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import { timingSafeEqual } from "crypto";
 import { requireAuth, requireStaff } from "../middleware/auth";
-import { orderCreateLimiter } from "../middleware/rateLimit";
+import { orderCreateLimiter, webhookLimiter } from "../middleware/rateLimit";
 import type { SheetsMirror } from "../services/sheets/mirror";
 import {
   MenuItemNotFoundError,
@@ -65,14 +65,12 @@ export function createSheetsRouter({ mirror, store, images = new DriveImageCache
   });
 
   // Apps Script onEdit trigger -> refresh now instead of waiting for the next poll.
-  router.post("/api/sheets/webhook", async (req, res) => {
+  // Not behind login (Apps Script has none), so it must not be discoverable: with no secret configured or a
+  // wrong one it answers exactly like a route that does not exist.
+  router.post("/api/sheets/webhook", webhookLimiter, async (req, res) => {
     const secret = process.env.SHEETS_WEBHOOK_SECRET;
-    if (!secret) {
-      res.status(503).json({ error: "Webhook disabled (SHEETS_WEBHOOK_SECRET not set)" });
-      return;
-    }
-    if (!secretMatches(req.get("x-webhook-secret"), secret)) {
-      res.status(401).json({ error: "Invalid webhook secret" });
+    if (!secret || !secretMatches(req.get("x-webhook-secret"), secret)) {
+      res.status(404).json({ error: "Not found" });
       return;
     }
     if (mirror.isShared()) {

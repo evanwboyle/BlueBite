@@ -58,7 +58,16 @@ function connectAbly(
   import('ably')
     .then(async (Ably) => {
       if (closed) return;
-      const realtime = new Ably.Realtime({ authUrl, authMethod: 'GET' });
+      // authCallback rather than authUrl so the session cookie is sent (the token route requires login,
+      // and in dev the API is on another origin).
+      const realtime = new Ably.Realtime({
+        authCallback: (_params, callback) => {
+          fetch(authUrl, { credentials: 'include' })
+            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Token request failed: HTTP ${r.status}`))))
+            .then((token) => callback(null, token))
+            .catch((err) => callback(String(err instanceof Error ? err.message : err), null));
+        },
+      });
       client = realtime;
       const slug = (b: string | null) =>
         `bluebite:${(b ?? 'all').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'all'}`;

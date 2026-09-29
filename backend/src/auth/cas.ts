@@ -8,7 +8,8 @@ const prisma = new PrismaClient();
 // Create a custom CAS strategy with better debugging
 const casOptions = {
   version: "CAS2.0",
-  ssoBaseURL: "https://secure-tst.its.yale.edu/cas",
+  // Yale test CAS by default. Production needs CAS_BASE_URL=https://secure.its.yale.edu/cas and a service registered with Yale ITS.
+  ssoBaseURL: process.env.CAS_BASE_URL || "https://secure-tst.its.yale.edu/cas",
   serverBaseURL: process.env.SERVER_BASE_URL || "http://localhost:3000",
   // Don't set callbackURL - let the library derive it from the request
   // callbackURL is automatically constructed as: serverBaseURL + current request path

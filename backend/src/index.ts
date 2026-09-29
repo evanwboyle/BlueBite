@@ -9,7 +9,7 @@ import passport from "./auth/cas";
 import { attachUser, signToken, setAuthCookie, clearAuthCookie } from "./auth/jwt";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
-import { orderCreateLimiter } from "./middleware/rateLimit";
+import { orderCreateLimiter, authLoginLimiter } from "./middleware/rateLimit";
 import { createPaymentsRouter } from "./routes/payments";
 import { useSheets, initSheets, startSheets } from "./services/sheets/runtime";
 import { createSheetsRouter } from "./routes/sheets";
@@ -51,9 +51,20 @@ if (isServerless) {
   });
 }
 
+// Behind Vercel's proxy req.ip is the proxy unless we trust one hop; the per-IP rate limiters need the real client.
+if (isServerless) app.set("trust proxy", 1);
+
 // Auth: stateless JWT cookie (no server-side session, so any serverless instance can verify it)
 app.use(cookieParser());
 app.use(attachUser);
+
+// Everything under /api needs a logged-in user except the login flow itself and the Apps Script
+// webhook (which authenticates with its own shared secret and answers 404 to anyone without it).
+const PUBLIC_API_PATHS = new Set(["/auth/login", "/auth/logout", "/auth/user", "/sheets/webhook"]);
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (PUBLIC_API_PATHS.has(req.path)) return next();
+  return requireAuth(req, res, next);
+});
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
@@ -195,33 +206,13 @@ app.get("/api/health", async (req: Request, res: Response) => {
 // CAS Login route - both initiates and handles CAS authentication
 app.get(
   "/api/auth/login",
+  authLoginLimiter,
   (req: Request, res: Response, next) => {
-    // Log incoming request details for debugging
-    const ticket = req.query.ticket;
-    const service = req.query.service;
-
-    if (ticket) {
-      console.log("CAS callback with ticket:", {
-        ticket,
-        service,
-        originalUrl: req.originalUrl,
-        queryParams: req.query
-      });
-    }
-
-    // Add custom error handling for CAS authentication
+    // Never log the CAS ticket or full query: a ticket is a credential until it is validated.
     passport.authenticate("cas", { session: false, failureRedirect: "/" })(req, res, (err: any) => {
       if (err) {
-        console.error("CAS authentication error:", {
-          message: err.message,
-          cause: err.cause?.message,
-          stack: err.stack
-        });
-        return res.status(500).json({
-          error: "Authentication failed",
-          message: err.message || err,
-          details: err.cause?.message || null
-        });
+        console.error("CAS authentication error:", err.message, err.cause?.message);
+        return res.status(500).json({ error: "Authentication failed" });
       }
       next();
     });
