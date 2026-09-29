@@ -8,35 +8,21 @@ import {
   paymentAdminLimiter,
 } from "../middleware/rateLimit";
 import { getPaymentProvider, TERMINAL_PAYMENT_STATUSES, type PaymentResult, type PaymentStatus } from "../services/payments";
+import { createPaymentStore, type PaymentStore, type PaymentRecord } from "../services/payments/paymentStore";
 import type { MockPaymentProvider } from "../services/payments/mockProvider";
 import type { SheetsMirror } from "../services/sheets/mirror";
 import { OrderNotFoundError, type SheetsStore } from "../services/sheets/store";
 import { BUTTERY_NAME } from "../services/sheets/model";
 
 interface Deps {
+  paymentStore?: PaymentStore;
   mirror: SheetsMirror;
   store: SheetsStore;
   broadcastEvent: (eventType: string, data: unknown, buttery?: string | null) => void;
 }
 
-/**
- * A payment attempt. Held in memory only: the sheet's durable record of a payment
- * is the Paid checkbox plus the Clover payment ID on the order row. If the server
- * restarts mid-attempt the record is lost and the order simply stays unpaid.
- */
-interface PaymentRecord {
-  id: string;
-  orderId: string;
-  provider: string;
-  status: PaymentStatus;
-  amount: number;
-  currency: string;
-  providerRef: string | null;
-  errorMessage: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
+// Longer than the 55s Clover request, so a live attempt is never mistaken for a dead one.
+const PAYMENT_STALE_MS = 90_000;
 const PERSIST_ATTEMPTS = 5;
 const PERSIST_RETRY_MS = 2_000;
 
@@ -60,11 +46,9 @@ function serialize(p: PaymentRecord) {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: Deps) {
+export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent, paymentStore = createPaymentStore() }: Deps) {
   const router = express.Router();
   const provider = getPaymentProvider();
-  const byId = new Map<string, PaymentRecord>();
-  const byOrder = new Map<string, PaymentRecord>();
 
   /** What the frontend sees for an order that was paid before this process started (or by hand in the sheet). */
   function recordFromSheet(orderId: string): PaymentRecord | null {
@@ -112,7 +96,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
    * once terminal, so a late device callback after a cancel is logged and ignored.
    */
   async function applyResult(paymentId: string, result: PaymentResult, actor: string, paymentRef?: string) {
-    const record = byId.get(paymentId);
+    const record = await paymentStore.getById(paymentId);
     if (!record) return;
 
     if (TERMINAL_PAYMENT_STATUSES.has(record.status)) {
@@ -124,6 +108,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
     record.providerRef = result.providerRef ?? record.providerRef;
     record.errorMessage = result.errorMessage ?? null;
     record.updatedAt = new Date();
+    await paymentStore.save(record);
     log(paymentId, "status_change", actor, `Payment status -> ${result.status}`);
 
     // Tell the client first: the tap already happened, the sheet write can take a moment.
@@ -163,15 +148,19 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
         return;
       }
 
-      const existing = byOrder.get(orderId);
-      if (existing && (existing.status === "requested" || existing.status === "awaiting_device")) {
+      const existing = await paymentStore.getByOrder(orderId);
+      const inFlight = existing && (existing.status === "requested" || existing.status === "awaiting_device");
+      // A function that died mid-request leaves its record non-terminal forever. Past the
+      // stale window, retry under the SAME payment id so Clover's idempotency key stops a double charge.
+      const stale = inFlight && Date.now() - existing.updatedAt.getTime() > PAYMENT_STALE_MS;
+      if (inFlight && !stale) {
         res.status(200).json(serialize(existing)); // in flight: never double-charge
         return;
       }
 
       const now = new Date();
       const record: PaymentRecord = {
-        id: randomUUID(),
+        id: stale ? existing.id : randomUUID(),
         orderId,
         provider: provider.name,
         status: "requested",
@@ -182,8 +171,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
         createdAt: now,
         updatedAt: now,
       };
-      byId.set(record.id, record);
-      byOrder.set(orderId, record);
+      await paymentStore.save(record);
       const actor = (req.body?.netId as string | undefined) || parsed.order.netId;
       log(record.id, "requested", actor, `order ${orderId} ($${record.amount.toFixed(2)}) via ${provider.name}`);
 
@@ -203,8 +191,8 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
   });
 
   // GET /api/orders/:orderId/payment - polling fallback for SSE.
-  router.get("/:orderId/payment", paymentStatusLimiter, (req: Request, res: Response) => {
-    const record = byOrder.get(req.params.orderId) ?? recordFromSheet(req.params.orderId);
+  router.get("/:orderId/payment", paymentStatusLimiter, async (req: Request, res: Response) => {
+    const record = (await paymentStore.getByOrder(req.params.orderId).catch(() => null)) ?? recordFromSheet(req.params.orderId);
     if (!record) {
       res.status(404).json({ error: "No payment found for this order" });
       return;
@@ -215,7 +203,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
   // POST /api/orders/:orderId/payment/cancel - customer backs out, or staff aborts a stuck attempt.
   router.post("/:orderId/payment/cancel", paymentCancelLimiter, async (req: Request, res: Response) => {
     try {
-      const record = byOrder.get(req.params.orderId);
+      const record = await paymentStore.getByOrder(req.params.orderId);
       if (!record) {
         res.status(404).json({ error: "No payment found for this order" });
         return;
@@ -269,8 +257,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
         createdAt: now,
         updatedAt: now,
       };
-      byId.set(record.id, record);
-      byOrder.set(orderId, record);
+      await paymentStore.save(record);
 
       console.warn(`[PAYMENT] BYPASS: order=${orderId} admin=${admin.netId} reason=${reason ?? "(none given)"}`);
       await applyResult(record.id, { status: "bypassed" }, `admin:${admin.netId}`, `BYPASS:${admin.netId}`);
@@ -282,7 +269,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
   });
 
   // POST /api/orders/:orderId/payment/simulate - debug-only, mock provider only.
-  router.post("/:orderId/payment/simulate", requireAuth, requireAdmin, paymentAdminLimiter, (req: Request, res: Response) => {
+  router.post("/:orderId/payment/simulate", requireAuth, requireAdmin, paymentAdminLimiter, async (req: Request, res: Response) => {
     if (process.env.PAYMENTS_DEBUG_MODE !== "true" || provider.name !== "mock") {
       res.status(403).json({
         error: "Payment simulation is only available when PAYMENTS_DEBUG_MODE=true and PAYMENT_PROVIDER=mock",
@@ -295,7 +282,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent }: De
       res.status(400).json({ error: "outcome must be one of: succeeded, failed, cancelled" });
       return;
     }
-    const record = byOrder.get(req.params.orderId);
+    const record = await paymentStore.getByOrder(req.params.orderId);
     if (!record) {
       res.status(404).json({ error: "No payment found for this order" });
       return;
