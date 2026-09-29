@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Order, OrderItem, MenuItem, User } from './types';
+import type { Order, OrderItem, MenuItem, User, ServerConfig } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
@@ -10,7 +10,7 @@ import { OrderManager } from './components/OrderManager';
 import { LoginPage } from './components/LoginPage';
 import { ButterySelectionPage } from './components/ButterySelectionPage';
 import { storage } from './utils/storage';
-import { api } from './utils/api';
+import { api, DEFAULT_SERVER_CONFIG } from './utils/api';
 import { API_BASE_URL } from './utils/config';
 import { calculateCartTotal } from './utils/cart';
 import { enrichOrdersWithMenuNames } from './utils/order';
@@ -46,6 +46,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [serverConfig, setServerConfig] = useState<ServerConfig>(DEFAULT_SERVER_CONFIG);
   const [isBackgroundPaused, setIsBackgroundPaused] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
@@ -60,6 +61,11 @@ function App() {
   menuItemsRef.current = menuItems;
   const ordersRef = useRef<Order[]>(orders);
   ordersRef.current = orders;
+
+  // Learn what the backend supports (e.g. no menu editing when the Google Sheet is the store)
+  useEffect(() => {
+    api.fetchServerConfig().then(setServerConfig);
+  }, []);
 
   // Initialize on mount — fetch butteries and auth status in parallel
   useEffect(() => {
@@ -559,6 +565,7 @@ function App() {
               onUpdateMenuItem={handleUpdateMenuItem}
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
+              menuEditable={serverConfig.menuEditable}
             />
           </GlassPanel>
         </div>
@@ -584,7 +591,7 @@ function App() {
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
           <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
           <div className="flex-1 overflow-hidden">
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} preparingStatus={serverConfig.preparingStatus} />
           </div>
         </div>
 
@@ -650,6 +657,7 @@ function App() {
               onUpdateMenuItem={handleUpdateMenuItem}
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
+              menuEditable={serverConfig.menuEditable}
             />
           </GlassPanel>
 
@@ -689,7 +697,7 @@ function App() {
           <div
             style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 19px)`, minWidth: 0 }}
           >
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} preparingStatus={serverConfig.preparingStatus} />
           </div>
         </div>
       </div>

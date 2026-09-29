@@ -7,6 +7,8 @@ interface ItemDetailModalProps {
   item: MenuItem | null;
   isEditMode?: boolean;
   currentUser?: User | null;
+  /** False when the menu lives in the Google Sheet: admins get the availability/hot toggles only. */
+  menuEditable?: boolean;
   onAddToCart: (item: OrderItem) => void;
   onUpdateMenuItem?: (id: string, updates: Partial<MenuItem>) => void;
   onDeleteMenuItem?: (id: string) => void;
@@ -18,6 +20,7 @@ export function ItemDetailModal({
   item,
   isEditMode = false,
   currentUser = null,
+  menuEditable = true,
   onAddToCart,
   onUpdateMenuItem,
   onDeleteMenuItem,
@@ -64,7 +67,9 @@ export function ItemDetailModal({
   const isStaff = currentUser?.role === 'staff';
   const isAdmin = currentUser?.role === 'admin';
   const canEdit = isEditMode && (isStaff || isAdmin);
-  const canEditAll = isEditMode && isAdmin;
+  const canEditAll = isEditMode && isAdmin && menuEditable;
+  // Staff always get the availability/hot view; admins do too when the menu is edited elsewhere.
+  const staffEditView = canEdit && (!isAdmin || !menuEditable);
 
   // View mode calculations
   const allModifiers = [
@@ -251,7 +256,7 @@ export function ItemDetailModal({
   };
 
   // Render Edit Mode (Staff)
-  if (canEdit && isStaff && !isAdmin) {
+  if (staffEditView) {
     return (
       <div
         className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -280,6 +285,11 @@ export function ItemDetailModal({
 
           {/* Content - Staff can only edit Available and Hot */}
           <div className="p-6 space-y-6">
+            {!menuEditable && (
+              <p className="text-sm text-gray-400">
+                Name, price, description, image and modifiers are edited in the Google Sheet.
+              </p>
+            )}
             <div className="space-y-4">
               {/* Available Toggle */}
               <GlassPanel level="surface" className="flex items-center justify-between">

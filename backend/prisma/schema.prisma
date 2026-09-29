@@ -61,11 +61,12 @@ model Modifier {
   price              Float
   menuItemId         String
   modifierGroupId    String?
+  available          Boolean             @default(true)
   archived           Boolean             @default(false)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   menuItem           MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  modifierGroup      ModifierGroup?      @relation(fields: [modifierGroupId], references: [id], onDelete: SetNull)
+  modifierGroup     ModifierGroup?      @relation(fields: [modifierGroupId], references: [id], onDelete: SetNull)
   orderItemModifiers OrderItemModifier[]
 
   @@index([menuItemId])

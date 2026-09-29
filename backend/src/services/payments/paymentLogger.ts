@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from "@prisma/client";
+import { useSheets } from "../sheets/runtime";
 
 const prisma = new PrismaClient();
 
@@ -22,6 +23,10 @@ export async function logPaymentEvent(params: {
       message ? ` message=${message}` : ""
     }`
   );
+
+  // STORE=sheets has no database: the console line above (plus the Paid checkbox and
+  // Clover ID on the order row) is the record.
+  if (useSheets()) return;
 
   try {
     await prisma.paymentEvent.create({

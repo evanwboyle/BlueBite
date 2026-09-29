@@ -10,6 +10,10 @@ import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
 import { orderCreateLimiter } from "./middleware/rateLimit";
 import { createPaymentsRouter } from "./routes/payments";
+import { useSheets, initSheets, startSheets } from "./services/sheets/runtime";
+import { createSheetsRouter } from "./routes/sheets";
+import { createSheetsPaymentsRouter } from "./routes/paymentsSheets";
+import { getServerConfig } from "./routes/config";
 
 dotenv.config();
 
@@ -124,6 +128,19 @@ app.get("/api/events", (req: Request, res: Response) => {
     if (idx !== -1) sseClients.splice(idx, 1);
     console.log(`[SSE] Client ${clientId} disconnected. Total: ${sseClients.length}`);
   });
+});
+
+// STORE=sheets: the Google Sheet is the system of record. These routers are mounted ahead of the
+// Prisma routes below, which are therefore never reached for the paths they cover.
+if (useSheets()) {
+  const { mirror, store } = initSheets(broadcastEvent);
+  app.use(createSheetsRouter({ mirror, store }));
+  app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent }));
+}
+
+// What this backend supports (menu editing, "preparing" stage), so the frontend can hide controls that would only error.
+app.get("/api/config", (_req: Request, res: Response) => {
+  res.json(getServerConfig());
 });
 
 // Health check route
@@ -452,7 +469,10 @@ app.post("/api/orders", orderCreateLimiter, async (req: Request, res: Response) 
 });
 
 // Payment routes (send sale request to device, poll status, cancel, admin bypass) - see routes/payments.ts
-app.use("/api/orders", createPaymentsRouter({ prisma, broadcastEvent, syncOrderToSheet }));
+// (Not registered in Sheets mode: both routers would claim the provider's single result handler.)
+if (!useSheets()) {
+  app.use("/api/orders", createPaymentsRouter({ prisma, broadcastEvent, syncOrderToSheet }));
+}
 
 // Get all orders (with optional buttery filter)
 app.get("/api/orders", async (req: Request, res: Response) => {
@@ -892,8 +912,16 @@ app.get("/preview", (req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(port, () => {
-  console.log(`🚀 BlueBite API running at http://localhost:${port}`);
+async function start() {
+  if (useSheets()) await startSheets();
+  app.listen(port, () => {
+    console.log(`🚀 BlueBite API running at http://localhost:${port} (store: ${useSheets() ? "google sheets" : "postgres"})`);
+  });
+}
+
+start().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
 
 // Graceful shutdown

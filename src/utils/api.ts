@@ -1,4 +1,4 @@
-import type { MenuItem, Order, OrderItem, Payment } from '../types';
+import type { MenuItem, Order, OrderItem, Payment, ServerConfig } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -73,7 +73,21 @@ function transformMenuItem(item: BackendMenuItem): MenuItem {
   };
 }
 
+/** Assumed when /api/config is unavailable (older backend or network error): the original Postgres behavior. */
+export const DEFAULT_SERVER_CONFIG: ServerConfig = { store: 'postgres', menuEditable: true, preparingStatus: true };
+
 export const api = {
+  /** What the backend supports. Never throws: falls back to the defaults. */
+  async fetchServerConfig(): Promise<ServerConfig> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/config`, { credentials: 'include' });
+      if (!response.ok) return DEFAULT_SERVER_CONFIG;
+      return { ...DEFAULT_SERVER_CONFIG, ...(await response.json()) };
+    } catch {
+      return DEFAULT_SERVER_CONFIG;
+    }
+  },
+
   /**
    * Fetch all menu items from the backend API
    * Optionally filter by buttery/residential college

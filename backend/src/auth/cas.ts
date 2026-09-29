@@ -1,5 +1,6 @@
 import passport from "passport";
 import { PrismaClient } from "@prisma/client";
+import { useSheets, getSheets } from "../services/sheets/runtime";
 const CasStrategy = require("@coursetable/passport-cas").Strategy;
 
 const prisma = new PrismaClient();
@@ -35,6 +36,11 @@ passport.use(
 
         console.log("CAS authentication successful for NetID:", netId);
 
+        // STORE=sheets: there is no user table. Roles come from the Roles tab; anyone not listed is a customer.
+        if (useSheets()) {
+          return done(null, { netId, name: null, role: getSheets().mirror.getRole(netId) });
+        }
+
         // Create or update user in database
         const user = await prisma.user.upsert({
           where: { netId },
@@ -66,6 +72,10 @@ passport.serializeUser((user: any, done) => {
 // Deserialize user from session
 passport.deserializeUser(async (netId: string, done) => {
   try {
+    if (useSheets()) {
+      // Re-read the role from the in-memory mirror each request, so a role change in the sheet applies without re-login.
+      return done(null, { netId, name: null, role: getSheets().mirror.getRole(netId) });
+    }
     const user = await prisma.user.findUnique({
       where: { netId },
     });

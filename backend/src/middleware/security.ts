@@ -155,19 +155,25 @@ interface RateLimitEntry {
 }
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
+let nextLimiterId = 0;
 
 export const rateLimit = (options: {
   windowMs: number; // Time window in milliseconds
   maxRequests: number; // Max requests per window
   keyGenerator?: (req: Request) => string; // Custom key generator
 }) => {
+  // Each limiter counts on its own. Sharing one counter per client across limiters meant, e.g.,
+  // payment-status polling used up the (much smaller) order-creation and payment-initiation limits.
+  const limiterId = nextLimiterId++;
+
   return (req: Request, res: Response, next: NextFunction): void => {
     const authReq = req as AuthenticatedRequest;
 
     // Generate key (default: netId, fallback to IP)
-    const key = options.keyGenerator
+    const clientKey = options.keyGenerator
       ? options.keyGenerator(req)
       : authReq.user?.netId || req.ip || 'anonymous';
+    const key = `${limiterId}:${clientKey}`;
 
     const now = Date.now();
     const entry = rateLimitStore.get(key);

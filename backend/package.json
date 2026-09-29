@@ -9,7 +9,10 @@
     "start": "node dist/index.js",
     "db:push": "prisma db push",
     "db:pull": "prisma db pull",
-    "seed": "ts-node src/seed.ts"
+    "seed": "ts-node src/seed.ts",
+    "sheet:setup": "ts-node src/scripts/setupSheet.ts",
+    "sheet:migrate": "ts-node src/scripts/migrateFromPrisma.ts",
+    "test:sheets": "node --require ts-node/register --test src/services/sheets/*.test.ts src/routes/*.test.ts src/middleware/*.test.ts"
   },
   "keywords": [],
   "author": "",
