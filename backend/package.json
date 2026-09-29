@@ -12,7 +12,7 @@
     "seed": "ts-node src/seed.ts",
     "sheet:setup": "ts-node src/scripts/setupSheet.ts",
     "sheet:migrate": "ts-node src/scripts/migrateFromPrisma.ts",
-    "test:sheets": "node --require ts-node/register --test src/services/sheets/*.test.ts src/routes/*.test.ts src/middleware/*.test.ts src/services/payments/*.test.ts src/services/realtime.test.ts"
+    "test:sheets": "node --require ts-node/register --test src/services/sheets/*.test.ts src/routes/*.test.ts src/middleware/*.test.ts src/services/payments/*.test.ts src/services/realtime.test.ts src/auth/*.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +28,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "google-auth-library": "^11.1.0",
     "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",

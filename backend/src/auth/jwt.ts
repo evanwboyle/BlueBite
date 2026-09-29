@@ -10,6 +10,8 @@ export type Role = "customer" | "staff" | "admin";
 export interface TokenPayload {
   netId: string;
   role: Role;
+  /** Set for Google sign-ins, so the Roles tab can match on the Google Email column. */
+  email?: string;
 }
 
 function secret(): string {
@@ -20,13 +22,13 @@ function secret(): string {
 }
 
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign({ netId: payload.netId, role: payload.role }, secret(), { algorithm: "HS256", expiresIn: MAX_AGE_SECONDS });
+  return jwt.sign({ netId: payload.netId, role: payload.role, ...(payload.email ? { email: payload.email } : {}) }, secret(), { algorithm: "HS256", expiresIn: MAX_AGE_SECONDS });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
     const decoded = jwt.verify(token, secret(), { algorithms: ["HS256"] }) as Partial<TokenPayload>;
-    return decoded.netId && decoded.role ? { netId: decoded.netId, role: decoded.role } : null;
+    return decoded.netId && decoded.role ? { netId: decoded.netId, role: decoded.role, email: decoded.email } : null;
   } catch {
     return null;
   }
@@ -64,7 +66,7 @@ export async function attachUser(req: Request, _res: Response, next: NextFunctio
     if (useSheets()) {
       const { mirror } = getSheets();
       await mirror.ensureFresh().catch(() => undefined); // a cold instance must not see every admin as a customer
-      user.role = mirror.getRole(payload.netId);
+      user.role = mirror.getRole(payload.netId, payload.email);
     }
   }
 

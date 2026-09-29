@@ -286,6 +286,17 @@ export function parseRoles(rows: Cell[][]): Map<string, Role> {
   return roles;
 }
 
+/** Roles keyed by the "Google Email" column (col C), for people who sign in with Google instead of CAS. */
+export function parseRoleEmails(rows: Cell[][]): Map<string, Role> {
+  const roles = new Map<string, Role>();
+  for (const row of rows.slice(1)) {
+    const email = str(row[2]).toLowerCase();
+    const role = str(row[1]).toLowerCase();
+    if (email && (role === "staff" || role === "admin")) roles.set(email, role);
+  }
+  return roles;
+}
+
 // ---- Orders --------------------------------------------------------------
 
 export type OrderStatus =

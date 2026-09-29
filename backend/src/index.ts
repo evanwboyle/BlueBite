@@ -6,12 +6,13 @@ import path from "path";
 import multer from "multer";
 import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
+import { createGoogleAuthRouter } from "./auth/google";
 import { attachUser, signToken, setAuthCookie, clearAuthCookie } from "./auth/jwt";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
 import { orderCreateLimiter, authLoginLimiter } from "./middleware/rateLimit";
 import { createPaymentsRouter } from "./routes/payments";
-import { useSheets, initSheets, startSheets } from "./services/sheets/runtime";
+import { useSheets, initSheets, startSheets, getSheets } from "./services/sheets/runtime";
 import { createSheetsRouter } from "./routes/sheets";
 import { createSheetsPaymentsRouter } from "./routes/paymentsSheets";
 import { getServerConfig } from "./routes/config";
@@ -60,7 +61,7 @@ app.use(attachUser);
 
 // Everything under /api needs a logged-in user except the login flow itself and the Apps Script
 // webhook (which authenticates with its own shared secret and answers 404 to anyone without it).
-const PUBLIC_API_PATHS = new Set(["/auth/login", "/auth/logout", "/auth/user", "/sheets/webhook"]);
+const PUBLIC_API_PATHS = new Set(["/auth/login", "/auth/google", "/auth/logout", "/auth/user", "/sheets/webhook"]);
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
   if (PUBLIC_API_PATHS.has(req.path)) return next();
   return requireAuth(req, res, next);
@@ -202,6 +203,21 @@ app.get("/api/health", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Database connection failed" });
   }
 });
+
+// Sign in with Google (used until the app is registered with Yale CAS)
+app.use(
+  createGoogleAuthRouter({
+    resolveRole: async ({ netId, email }) => {
+      if (useSheets()) {
+        const { mirror } = getSheets();
+        await mirror.ensureFresh().catch(() => undefined);
+        return mirror.getRole(netId, email);
+      }
+      const user = await prisma.user.upsert({ where: { netId }, update: { updatedAt: new Date() }, create: { netId, role: "customer" } });
+      return user.role as "customer" | "staff" | "admin";
+    },
+  })
+);
 
 // CAS Login route - both initiates and handles CAS authentication
 app.get(

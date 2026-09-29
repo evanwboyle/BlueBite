@@ -9,6 +9,7 @@ import {
   dayTabName,
   parseMenu,
   parseOrderRow,
+  parseRoleEmails,
   parseRoles,
   quoteTab,
   type ApiMenuItem,
@@ -26,6 +27,7 @@ export interface MirrorSnapshot {
   menu: ApiMenuItem[];
   menuFingerprint: string;
   roles: Array<[string, Role]>;
+  roleEmails?: Array<[string, Role]>;
   orders: ParsedOrder[];
   fingerprints: Array<[string, string]>;
   changedAt: Array<[string, string]>;
@@ -52,6 +54,7 @@ export class SheetsMirror {
   private menu: ApiMenuItem[] = [];
   private menuFingerprint = "";
   private roles = new Map<string, Role>();
+  private roleEmails = new Map<string, Role>();
   private orders = new Map<string, ParsedOrder>();
   private fingerprints = new Map<string, string>();
   private changedAt = new Map<string, string>();
@@ -93,8 +96,11 @@ export class SheetsMirror {
     return this.menu.some((m) => m.image?.endsWith(`${IMAGE_ROUTE}${fileId}`));
   }
 
-  getRole(netId: string): Role {
-    return this.roles.get(netId.toLowerCase()) ?? "customer";
+  /** Role by NetID, or by Google email for people who signed in with Google. */
+  getRole(netId: string, email?: string | null): Role {
+    return (
+      this.roles.get(netId.toLowerCase()) ?? (email ? this.roleEmails.get(email.toLowerCase()) : undefined) ?? "customer"
+    );
   }
 
   getOrder(id: string): ParsedOrder | undefined {
@@ -130,6 +136,7 @@ export class SheetsMirror {
       menu: this.menu,
       menuFingerprint: this.menuFingerprint,
       roles: [...this.roles],
+      roleEmails: [...this.roleEmails],
       orders: [...this.orders.values()],
       fingerprints: [...this.fingerprints],
       changedAt: [...this.changedAt],
@@ -143,6 +150,7 @@ export class SheetsMirror {
     this.menu = snapshot.menu;
     this.menuFingerprint = snapshot.menuFingerprint;
     this.roles = new Map(snapshot.roles);
+    this.roleEmails = new Map(snapshot.roleEmails ?? []);
     this.orders = new Map(snapshot.orders.map((p) => [p.order.id, p]));
     this.fingerprints = new Map(snapshot.fingerprints);
     this.changedAt = new Map(snapshot.changedAt);
@@ -278,6 +286,7 @@ export class SheetsMirror {
 
     this.applyMenu(byTab.get(MENU_TAB) ?? [], byTab.get(MODIFIERS_TAB) ?? []);
     this.roles = parseRoles(byTab.get(ROLES_TAB) ?? []);
+    this.roleEmails = parseRoleEmails(byTab.get(ROLES_TAB) ?? []);
     this.applyOrders(dayTabs, byTab);
 
     this.loaded = true;

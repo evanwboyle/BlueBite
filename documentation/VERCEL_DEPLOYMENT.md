@@ -18,3 +18,9 @@ Not needed: `DATABASE_URL`, `DIRECT_URL`, Supabase vars.
 - `/api/events` (SSE) cannot work on serverless; use Ably.
 - Vercel Hobby may cap function duration below 60s. Check the plan before relying on tap-to-pay.
 - The Clover REST provider has not run against a real device (see CLOVER_PAYMENTS.md).
+
+## Login
+- **Sign in with Google** (`backend/src/auth/google.ts`): the browser posts a Google ID token to `POST /api/auth/google`. The server verifies signature/audience, requires a verified email whose `hd` claim and address are in `GOOGLE_ALLOWED_DOMAIN` (default `yale.edu`), and issues the same JWT cookie. The identity key ("netId") is the email local part (`first.last`). Staff/admin roles match on the Roles tab's **Google Email** column (or NetID column).
+- **CAS** only validates `localhost` on Yale's test server; production needs a service registered with Yale IAM and `CAS_BASE_URL=https://secure.its.yale.edu/cas`. With `VITE_GOOGLE_CLIENT_ID` set the CAS button is hidden unless `VITE_ENABLE_CAS=true`.
+- Google setup: Google Cloud Console > APIs & Services > Credentials > OAuth client ID (Web). Authorised JavaScript origins: the production URL and `http://localhost:5173`. No redirect URI is needed.
+- Orders placed under Google identities are keyed by email local part, so they will not merge with CAS NetIDs later.

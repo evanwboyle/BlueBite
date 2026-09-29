@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
 import { X, Plus, Minus, Trash2, Upload, ImageIcon } from 'lucide-react';
 import { GlassPanel } from './ui';
+import { API_BASE_URL } from '../utils/config';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -98,7 +99,6 @@ export function ItemDetailModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
     setImageUploading(true);
     try {
       const formData = new FormData();
