@@ -1,4 +1,4 @@
-import express, { Express, Request, Response } from "express";
+import express, { Express, NextFunction, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import session from "express-session";
@@ -151,6 +151,20 @@ app.get("/api/events", (req: Request, res: Response) => {
 // Prisma routes below, which are therefore never reached for the paths they cover.
 if (useSheets()) {
   const { mirror, store } = initSheets(broadcastEvent);
+  // Serverless (Upstash configured): no poll timer, so bring the mirror up to date before each request.
+  app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
+    if (!mirror.isShared() || req.path === "/sheets/webhook") return next();
+    try {
+      await mirror.ensureFresh();
+    } catch (error) {
+      console.error("[Sheets] Failed to refresh mirror:", error);
+      if (!mirror.isLoaded()) {
+        res.status(503).json({ error: "Sheet unavailable" });
+        return;
+      }
+    }
+    next();
+  });
   app.use(createSheetsRouter({ mirror, store }));
   app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent }));
 }

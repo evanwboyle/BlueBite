@@ -1,4 +1,5 @@
 import type { PaymentStatus } from "./types";
+import { UpstashRedis } from "../upstash";
 
 /**
  * A payment attempt. The sheet's durable record of a payment is still the Paid
@@ -42,23 +43,12 @@ export class MemoryPaymentStore implements PaymentStore {
 
 const TTL_SECONDS = 24 * 60 * 60;
 
-/** Upstash Redis over its REST API (plain fetch, so it runs in any serverless runtime). */
+/** Payment attempts in Upstash Redis. */
 export class UpstashPaymentStore implements PaymentStore {
-  constructor(
-    private readonly url: string,
-    private readonly token: string,
-    private readonly fetchImpl: typeof fetch = fetch
-  ) {}
+  constructor(private readonly redis: UpstashRedis) {}
 
-  private async command(...args: (string | number)[]): Promise<unknown> {
-    const res = await this.fetchImpl(this.url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(args),
-    });
-    const body = (await res.json()) as { result?: unknown; error?: string };
-    if (!res.ok || body.error) throw new Error(`Upstash error: ${body.error ?? res.status}`);
-    return body.result;
+  private command(...args: (string | number)[]) {
+    return this.redis.command(...args);
   }
 
   private parse(raw: unknown): PaymentRecord | null {
@@ -84,7 +74,6 @@ export class UpstashPaymentStore implements PaymentStore {
 
 /** Upstash when UPSTASH_REDIS_REST_URL/TOKEN are set, otherwise per-process memory (local dev). */
 export function createPaymentStore(env: NodeJS.ProcessEnv = process.env): PaymentStore {
-  const url = env.UPSTASH_REDIS_REST_URL;
-  const token = env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? new UpstashPaymentStore(url, token) : new MemoryPaymentStore();
+  const redis = UpstashRedis.fromEnv(env);
+  return redis ? new UpstashPaymentStore(redis) : new MemoryPaymentStore();
 }

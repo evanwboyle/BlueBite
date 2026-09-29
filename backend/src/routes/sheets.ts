@@ -65,7 +65,7 @@ export function createSheetsRouter({ mirror, store, images = new DriveImageCache
   });
 
   // Apps Script onEdit trigger -> refresh now instead of waiting for the next poll.
-  router.post("/api/sheets/webhook", (req, res) => {
+  router.post("/api/sheets/webhook", async (req, res) => {
     const secret = process.env.SHEETS_WEBHOOK_SECRET;
     if (!secret) {
       res.status(503).json({ error: "Webhook disabled (SHEETS_WEBHOOK_SECRET not set)" });
@@ -73,6 +73,16 @@ export function createSheetsRouter({ mirror, store, images = new DriveImageCache
     }
     if (!secretMatches(req.get("x-webhook-secret"), secret)) {
       res.status(401).json({ error: "Invalid webhook secret" });
+      return;
+    }
+    if (mirror.isShared()) {
+      try {
+        await mirror.refreshNow();
+      } catch {
+        res.status(502).json({ error: "Refresh failed" }); // Apps Script may retry
+        return;
+      }
+      res.status(200).json({ ok: true });
       return;
     }
     mirror.requestRefresh();

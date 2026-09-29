@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { UpstashRedis } from "../upstash";
 import { MemoryPaymentStore, UpstashPaymentStore, createPaymentStore, type PaymentRecord } from "./paymentStore";
 
 const record: PaymentRecord = {
@@ -23,7 +24,7 @@ test("Upstash store round-trips a record (dates revived) by id and order", async
     return { ok: true, json: async () => ({ result: cmd === "GET" ? (kv.get(key) ?? null) : "OK" }) } as Response;
   }) as unknown as typeof fetch;
 
-  const store = new UpstashPaymentStore("https://x", "tok", fake);
+  const store = new UpstashPaymentStore(new UpstashRedis("https://x", "tok", fake));
   await store.save(record);
   const byOrder = await store.getByOrder("o1");
   assert.equal(byOrder?.id, "p1");

@@ -18,11 +18,28 @@ import {
   type Role,
 } from "./model";
 
+import type { SnapshotStore } from "./snapshotStore";
+
+/** Everything the mirror serves reads from, JSON-safe so it can live in Redis between serverless invocations. */
+export interface MirrorSnapshot {
+  fetchedAt: number;
+  menu: ApiMenuItem[];
+  menuFingerprint: string;
+  roles: Array<[string, Role]>;
+  orders: ParsedOrder[];
+  fingerprints: Array<[string, string]>;
+  changedAt: Array<[string, string]>;
+  tabs: Array<[string, number]>;
+  tabsFetchedAt: number;
+}
+
 export type EmitFn = (type: string, data: unknown, buttery?: string | null) => void;
 
 const TAB_LIST_TTL_MS = 60_000;
 const TAB_LIST_MISS_TTL_MS = 5_000; // re-check sooner while today's tab doesn't exist yet
 const MIN_REFRESH_GAP_MS = 1_000;
+const SNAPSHOT_MAX_AGE_MS = 4_000;
+const REFRESH_LOCK_MS = 10_000;
 const LOOKBACK_DAYS = 2; // today + yesterday, so a shift that crosses midnight stays live
 
 /**
@@ -51,7 +68,11 @@ export class SheetsMirror {
   private afterRefresh: Array<() => void> = [];
 
   /** imageBaseUrl: public URL of this server, used to rewrite Drive image links to /api/images/<fileId>. */
-  constructor(private api: SheetsApi, private emit: EmitFn, private opts: { imageBaseUrl?: string } = {}) {}
+  constructor(
+    private api: SheetsApi,
+    private emit: EmitFn,
+    private opts: { imageBaseUrl?: string; snapshots?: SnapshotStore } = {}
+  ) {}
 
   // ---- Reads (served from memory) ----------------------------------------
 
@@ -101,6 +122,61 @@ export class SheetsMirror {
     this.tabs.set(title, sheetId);
   }
 
+  // ---- Serverless: share state through a snapshot store --------------------
+
+  exportSnapshot(): MirrorSnapshot {
+    return {
+      fetchedAt: this.lastRefreshAt,
+      menu: this.menu,
+      menuFingerprint: this.menuFingerprint,
+      roles: [...this.roles],
+      orders: [...this.orders.values()],
+      fingerprints: [...this.fingerprints],
+      changedAt: [...this.changedAt],
+      tabs: [...this.tabs],
+      tabsFetchedAt: this.tabsFetchedAt,
+    };
+  }
+
+  /** Adopt a snapshot another instance saved. Emits nothing: whoever refreshed already emitted the diff. */
+  hydrate(snapshot: MirrorSnapshot): void {
+    this.menu = snapshot.menu;
+    this.menuFingerprint = snapshot.menuFingerprint;
+    this.roles = new Map(snapshot.roles);
+    this.orders = new Map(snapshot.orders.map((p) => [p.order.id, p]));
+    this.fingerprints = new Map(snapshot.fingerprints);
+    this.changedAt = new Map(snapshot.changedAt);
+    this.tabs = new Map(snapshot.tabs);
+    this.tabsFetchedAt = snapshot.tabsFetchedAt;
+    this.lastRefreshAt = snapshot.fetchedAt;
+    this.loaded = true;
+  }
+
+  /**
+   * Call at the start of every request when a snapshot store is configured (there is no poll timer
+   * in serverless). Serves the shared snapshot while it is younger than maxAgeMs; otherwise one
+   * caller takes the lock and refreshes from Sheets, and the rest use the previous snapshot.
+   */
+  async ensureFresh(maxAgeMs = SNAPSHOT_MAX_AGE_MS): Promise<void> {
+    const shared = this.opts.snapshots;
+    if (!shared) return;
+    if (this.loaded && Date.now() - this.lastRefreshAt < maxAgeMs) return;
+
+    const snapshot = await shared.load();
+    if (snapshot && Date.now() - snapshot.fetchedAt < maxAgeMs) {
+      this.hydrate(snapshot);
+      return;
+    }
+    const gotLock = await shared.tryLock(REFRESH_LOCK_MS);
+    if (snapshot) this.hydrate(snapshot); // also the baseline the refresh diffs against
+    if (!gotLock && (snapshot || this.loaded)) return; // someone else is refreshing; stale beats waiting
+    try {
+      await this.refresh();
+    } finally {
+      if (gotLock) await shared.unlock().catch(() => undefined); // the lock TTL covers a failed unlock
+    }
+  }
+
   /** Called after every successful refresh (the store uses this to stamp hand-typed rows). */
   onRefreshed(fn: () => void): void {
     this.afterRefresh.push(fn);
@@ -127,6 +203,21 @@ export class SheetsMirror {
       this.running = null;
     });
     return this.running;
+  }
+
+  /** True when state is shared through a snapshot store (serverless): no timers, refresh per request. */
+  isShared(): boolean {
+    return !!this.opts.snapshots;
+  }
+
+  /**
+   * Webhook entry point in serverless: timers do not survive the response, so refresh now. Adopt the
+   * shared snapshot first so the refresh diffs against what clients last saw and emits the right events.
+   */
+  async refreshNow(): Promise<void> {
+    const snapshot = await this.opts.snapshots?.load();
+    if (snapshot) this.hydrate(snapshot);
+    await this.refresh();
   }
 
   /** Webhook entry point: refresh soon, but no more than once per second. */
@@ -192,6 +283,12 @@ export class SheetsMirror {
     this.loaded = true;
     this.lastRefreshAt = Date.now();
     for (const fn of this.afterRefresh) fn();
+    // No await when unshared: an extra microtask here changes how concurrent refreshes coalesce.
+    if (this.opts.snapshots) {
+      await this.opts.snapshots.save(this.exportSnapshot()).catch((err) => {
+        console.error("[Sheets] Failed to save shared snapshot:", err);
+      });
+    }
   }
 
   private applyMenu(menuRows: Cell[][], modifierRows: Cell[][]): void {

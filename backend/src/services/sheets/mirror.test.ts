@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { SheetsApi } from "./api";
 import { SheetsMirror } from "./mirror";
+import { MemorySnapshotStore } from "./snapshotStore";
 import { COL, MENU_HEADER, MODIFIERS_HEADER, ORDER_HEADER, ROLES_HEADER, dayTabName, type Cell } from "./model";
 
 /** In-memory stand-in for the spreadsheet: tab title -> rows. */
@@ -155,4 +156,70 @@ test("getOrders filters by netId and sorts newest first", async () => {
   sheets.set(today, [ORDER_HEADER, older, newer, orderRow("o3", { name: "zzz9" })]);
   await mirror.refresh();
   assert.deepEqual(mirror.getOrders({ netId: "ABC1" }).map((o) => o.id), ["o2", "o1"]);
+});
+
+// ---- Serverless: shared snapshot ------------------------------------------
+
+function sharedSetup() {
+  const base = setup();
+  const snapshots = new MemorySnapshotStore();
+  const make = () => {
+    const events: Array<{ type: string }> = [];
+    const mirror = new SheetsMirror(base.sheets, (type) => events.push({ type }), { snapshots });
+    return { mirror, events };
+  };
+  return { ...base, snapshots, make };
+}
+
+test("shared mode: a cold instance reuses the snapshot instead of reading Sheets", async () => {
+  const { sheets, snapshots, make } = sharedSetup();
+  const a = make();
+  await a.mirror.ensureFresh();
+  assert.equal(sheets.reads, 1);
+  assert.ok(snapshots.snapshot);
+
+  const b = make(); // new process
+  await b.mirror.ensureFresh();
+  assert.equal(sheets.reads, 1, "second instance must not touch Sheets");
+  assert.equal(b.mirror.getOrders().length, 1);
+  assert.equal(b.mirror.getMenu()[0].name, "Fries");
+});
+
+test("shared mode: the instance that refreshes emits the diff exactly once", async () => {
+  const { sheets, snapshots, make, today } = sharedSetup();
+  const a = make();
+  await a.mirror.ensureFresh();
+
+  sheets.set(today, [ORDER_HEADER, orderRow("o1"), orderRow("o2")]);
+  snapshots.snapshot!.fetchedAt -= 60_000; // age it past the freshness window
+  const b = make();
+  await b.mirror.ensureFresh();
+  assert.deepEqual(b.events.map((e) => e.type), ["order:created"]);
+
+  const c = make();
+  await c.mirror.ensureFresh(); // fresh snapshot now: nothing to emit
+  assert.deepEqual(c.events, []);
+  assert.equal(c.mirror.getOrders().length, 2);
+});
+
+test("shared mode: while another instance holds the lock, a stale snapshot is served", async () => {
+  const { sheets, snapshots, make } = sharedSetup();
+  await make().mirror.ensureFresh();
+  snapshots.snapshot!.fetchedAt -= 60_000;
+  snapshots.lockedUntil = Date.now() + 10_000;
+  const reads = sheets.reads;
+
+  const b = make();
+  await b.mirror.ensureFresh();
+  assert.equal(sheets.reads, reads);
+  assert.equal(b.mirror.getOrders().length, 1);
+});
+
+test("shared mode: refreshNow diffs against the shared snapshot (webhook path)", async () => {
+  const { sheets, make, today } = sharedSetup();
+  await make().mirror.ensureFresh();
+  sheets.set(today, [ORDER_HEADER, orderRow("o1", { done: true })]);
+  const webhook = make();
+  await webhook.mirror.refreshNow();
+  assert.deepEqual(webhook.events.map((e) => e.type), ["order:updated"]);
 });
