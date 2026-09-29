@@ -1,11 +1,12 @@
 import express, { Express, NextFunction, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import session from "express-session";
+import cookieParser from "cookie-parser";
 import path from "path";
 import multer from "multer";
 import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
+import { attachUser, signToken, setAuthCookie, clearAuthCookie } from "./auth/jwt";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
 import { orderCreateLimiter } from "./middleware/rateLimit";
@@ -14,7 +15,7 @@ import { useSheets, initSheets, startSheets } from "./services/sheets/runtime";
 import { createSheetsRouter } from "./routes/sheets";
 import { createSheetsPaymentsRouter } from "./routes/paymentsSheets";
 import { getServerConfig } from "./routes/config";
-import { publishRealtime, createRealtimeToken } from "./services/realtime";
+import { publishRealtime, flushRealtime, createRealtimeToken } from "./services/realtime";
 
 dotenv.config();
 
@@ -34,23 +35,25 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Session middleware
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "bluebite-dev-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24, // 24 hours
-    },
-  })
-);
+// On Vercel each invocation is a fresh (or frozen) process: no listen(), no poll timer. The mirror
+// refreshes per request from the shared Upstash snapshot, and realtime events must be flushed
+// before the response ends because the function is frozen right after.
+export const isServerless = Boolean(process.env.VERCEL);
 
-// Passport middleware
-app.use(passport.initialize());
-app.use(passport.session());
+if (isServerless) {
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    const end = res.end.bind(res) as (...args: unknown[]) => Response;
+    res.end = ((...args: unknown[]) => {
+      flushRealtime().finally(() => end(...args));
+      return res;
+    }) as typeof res.end;
+    next();
+  });
+}
+
+// Auth: stateless JWT cookie (no server-side session, so any serverless instance can verify it)
+app.use(cookieParser());
+app.use(attachUser);
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
@@ -207,7 +210,7 @@ app.get(
     }
 
     // Add custom error handling for CAS authentication
-    passport.authenticate("cas", { failureRedirect: "/" })(req, res, (err: any) => {
+    passport.authenticate("cas", { session: false, failureRedirect: "/" })(req, res, (err: any) => {
       if (err) {
         console.error("CAS authentication error:", {
           message: err.message,
@@ -224,20 +227,17 @@ app.get(
     });
   },
   (req: Request, res: Response) => {
-    // Authentication successful, redirect back to frontend without parameters
-    const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
-    res.redirect(frontendUrl);
+    // Authentication successful: issue the JWT cookie and go back to the frontend (same origin on Vercel).
+    const user = req.user as { netId: string; role: "customer" | "staff" | "admin" };
+    setAuthCookie(res, signToken({ netId: user.netId, role: user.role }));
+    res.redirect(process.env.FRONTEND_URL || process.env.CORS_ORIGIN || "http://localhost:5173");
   }
 );
 
 // Logout route
-app.post("/api/auth/logout", (req: Request, res: Response) => {
-  req.logout((err) => {
-    if (err) {
-      return res.status(500).json({ error: "Logout failed" });
-    }
-    res.json({ message: "Logged out successfully" });
-  });
+app.post("/api/auth/logout", (_req: Request, res: Response) => {
+  clearAuthCookie(res);
+  res.json({ message: "Logged out successfully" });
 });
 
 // Get current authenticated user
@@ -950,13 +950,17 @@ async function start() {
   });
 }
 
-start().catch((error) => {
-  console.error("Failed to start server:", error);
-  process.exit(1);
-});
+if (!isServerless) {
+  start().catch((error) => {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  });
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+}
+
+export default app;

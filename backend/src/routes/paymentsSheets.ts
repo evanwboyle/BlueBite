@@ -95,13 +95,18 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent, paym
    * Applies a (possibly asynchronous) provider result. Payments are never re-opened
    * once terminal, so a late device callback after a cancel is logged and ignored.
    */
-  async function applyResult(paymentId: string, result: PaymentResult, actor: string, paymentRef?: string) {
+  async function applyResult(
+    paymentId: string,
+    result: PaymentResult,
+    actor: string,
+    paymentRef?: string
+  ): Promise<PaymentRecord | null> {
     const record = await paymentStore.getById(paymentId);
-    if (!record) return;
+    if (!record) return null;
 
     if (TERMINAL_PAYMENT_STATUSES.has(record.status)) {
       log(paymentId, "ignored_late_result", actor, `Ignoring ${result.status} - payment already ${record.status}`);
-      return;
+      return record;
     }
 
     record.status = result.status;
@@ -122,6 +127,7 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent, paym
       });
     }
     // failed / error / expired: the order stays unpaid (awaiting_payment) and can be retried.
+    return record;
   }
 
   provider.setResultHandler((paymentId, result) => {
@@ -181,9 +187,10 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent, paym
         amount: record.amount,
         currency: "USD",
       });
-      await applyResult(record.id, result, actor);
+      // The store may hand back a different object than `record` (Redis), so answer with the updated one.
+      const updated = await applyResult(record.id, result, actor);
 
-      res.status(202).json(serialize(record));
+      res.status(202).json(serialize(updated ?? record));
     } catch (error) {
       console.error("Payment initiation error:", error);
       res.status(500).json({ error: "Failed to initiate payment" });
@@ -213,8 +220,8 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent, paym
         return;
       }
       const result = await provider.cancelPayment({ paymentId: record.id, providerRef: record.providerRef });
-      await applyResult(record.id, result, "customer");
-      res.json(serialize(record));
+      const updated = await applyResult(record.id, result, "customer");
+      res.json(serialize(updated ?? record));
     } catch (error) {
       console.error("Payment cancel error:", error);
       res.status(500).json({ error: "Failed to cancel payment" });
@@ -260,8 +267,8 @@ export function createSheetsPaymentsRouter({ mirror, store, broadcastEvent, paym
       await paymentStore.save(record);
 
       console.warn(`[PAYMENT] BYPASS: order=${orderId} admin=${admin.netId} reason=${reason ?? "(none given)"}`);
-      await applyResult(record.id, { status: "bypassed" }, `admin:${admin.netId}`, `BYPASS:${admin.netId}`);
-      res.json(serialize(record));
+      const updated = await applyResult(record.id, { status: "bypassed" }, `admin:${admin.netId}`, `BYPASS:${admin.netId}`);
+      res.json(serialize(updated ?? record));
     } catch (error) {
       console.error("Payment bypass error:", error);
       res.status(500).json({ error: "Failed to bypass payment" });

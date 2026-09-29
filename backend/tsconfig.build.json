@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "declaration": false, "declarationMap": false },
+  "include": ["src", "src/types/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/__tests__/**", "src/auth/cas-wrapper.ts"]
+}

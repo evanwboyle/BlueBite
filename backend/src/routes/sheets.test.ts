@@ -20,6 +20,23 @@ import {
 } from "../services/sheets/model";
 import { createSheetsRouter } from "./sheets";
 import { createSheetsPaymentsRouter } from "./paymentsSheets";
+import { MemoryPaymentStore, type PaymentRecord } from "../services/payments/paymentStore";
+
+/** Like Redis, hands back copies: routes must not rely on mutating the object they saved. Also keeps tests off the network. */
+class CopyingPaymentStore extends MemoryPaymentStore {
+  private copy(r: PaymentRecord | null) {
+    return r ? { ...r } : null;
+  }
+  async getById(id: string) {
+    return this.copy(await super.getById(id));
+  }
+  async getByOrder(orderId: string) {
+    return this.copy(await super.getByOrder(orderId));
+  }
+  async save(r: PaymentRecord) {
+    await super.save({ ...r });
+  }
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -53,7 +70,7 @@ async function setup() {
     next();
   });
   app.use(createSheetsRouter({ mirror, store }));
-  app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent: emit }));
+  app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent: emit, paymentStore: new CopyingPaymentStore() }));
 
   const server = app.listen(0);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -210,7 +227,7 @@ test("hand-typed rows cannot be charged", async () => {
   const app = express();
   app.set("trust proxy", true);
   app.use(express.json());
-  app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent: () => undefined }));
+  app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent: () => undefined, paymentStore: new CopyingPaymentStore() }));
   const server = app.listen(0);
   cleanups.push(() => server.close());
   const id = mirror.getOrders()[0].id;

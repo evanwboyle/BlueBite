@@ -64,25 +64,6 @@ passport.use(
   )
 );
 
-// Serialize user for session
-passport.serializeUser((user: any, done) => {
-  done(null, user.netId);
-});
-
-// Deserialize user from session
-passport.deserializeUser(async (netId: string, done) => {
-  try {
-    if (useSheets()) {
-      // Re-read the role from the in-memory mirror each request, so a role change in the sheet applies without re-login.
-      return done(null, { netId, name: null, role: getSheets().mirror.getRole(netId) });
-    }
-    const user = await prisma.user.findUnique({
-      where: { netId },
-    });
-    done(null, user ? { netId: user.netId, name: user.name, role: user.role } : null);
-  } catch (error) {
-    done(error);
-  }
-});
+// No serializeUser/deserializeUser: auth is a stateless JWT cookie (see auth/jwt.ts), not a passport session.
 
 export default passport;
