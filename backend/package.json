@@ -12,7 +12,7 @@
     "seed": "ts-node src/seed.ts",
     "sheet:setup": "ts-node src/scripts/setupSheet.ts",
     "sheet:migrate": "ts-node src/scripts/migrateFromPrisma.ts",
-    "test:sheets": "node --require ts-node/register --test src/services/sheets/*.test.ts src/routes/*.test.ts src/middleware/*.test.ts src/services/payments/*.test.ts"
+    "test:sheets": "node --require ts-node/register --test src/services/sheets/*.test.ts src/routes/*.test.ts src/middleware/*.test.ts src/services/payments/*.test.ts src/services/realtime.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +24,7 @@
     "@types/express-session": "^1.18.2",
     "@types/multer": "^2.1.0",
     "@types/passport": "^1.0.17",
+    "ably": "^2.29.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",

@@ -14,6 +14,7 @@ import { useSheets, initSheets, startSheets } from "./services/sheets/runtime";
 import { createSheetsRouter } from "./routes/sheets";
 import { createSheetsPaymentsRouter } from "./routes/paymentsSheets";
 import { getServerConfig } from "./routes/config";
+import { publishRealtime, createRealtimeToken } from "./services/realtime";
 
 dotenv.config();
 
@@ -76,6 +77,7 @@ interface SSEClient {
 const sseClients: SSEClient[] = [];
 
 function broadcastEvent(eventType: string, data: unknown, buttery?: string | null) {
+  publishRealtime(eventType, data, buttery);
   const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
   const deadClients: number[] = [];
   for (let i = 0; i < sseClients.length; i++) {
@@ -95,6 +97,21 @@ function broadcastEvent(eventType: string, data: unknown, buttery?: string | nul
     sseClients.splice(deadClients[i], 1);
   }
 }
+
+// Ably token endpoint - browsers subscribe to their buttery's channel with a short-lived token
+app.get("/api/realtime/token", async (req: Request, res: Response) => {
+  try {
+    const token = await createRealtimeToken((req.query.buttery as string) || null);
+    if (!token) {
+      res.status(404).json({ error: "Realtime push is not configured" });
+      return;
+    }
+    res.json(token);
+  } catch (error) {
+    console.error("Realtime token error:", error);
+    res.status(500).json({ error: "Failed to create realtime token" });
+  }
+});
 
 // SSE endpoint - clients connect here to receive real-time updates
 app.get("/api/events", (req: Request, res: Response) => {

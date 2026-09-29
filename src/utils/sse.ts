@@ -25,6 +25,64 @@ export function connectSSE(
   buttery: string | null,
   onEvent: (type: SSEEventType, data: unknown) => void,
 ): SSEConnection {
+  return import.meta.env.VITE_REALTIME === 'ably'
+    ? connectAbly(buttery, onEvent)
+    : connectEventSource(buttery, onEvent);
+}
+
+const EVENT_TYPES: SSEEventType[] = [
+  'order:created',
+  'order:updated',
+  'payment:updated',
+  'menu:created',
+  'menu:updated',
+  'menu:deleted',
+];
+
+/**
+ * Managed push (Ably): the backend publishes each event to a per-buttery channel and hands out a
+ * subscribe-only token at /realtime/token. The Ably client is loaded on demand so SSE-only builds
+ * do not ship it. Ably reconnects on its own.
+ */
+function connectAbly(
+  buttery: string | null,
+  onEvent: (type: SSEEventType, data: unknown) => void,
+): SSEConnection {
+  let closed = false;
+  let client: { close: () => void } | null = null;
+
+  const authUrl = buttery
+    ? `${API_BASE_URL}/realtime/token?buttery=${encodeURIComponent(buttery)}`
+    : `${API_BASE_URL}/realtime/token`;
+
+  import('ably')
+    .then(async (Ably) => {
+      if (closed) return;
+      const realtime = new Ably.Realtime({ authUrl, authMethod: 'GET' });
+      client = realtime;
+      const slug = (b: string | null) =>
+        `bluebite:${(b ?? 'all').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'all'}`;
+      for (const channelName of new Set([slug(buttery), slug(null)])) {
+        await realtime.channels.get(channelName).subscribe((message) => {
+          if (closed || !EVENT_TYPES.includes(message.name as SSEEventType)) return;
+          onEvent(message.name as SSEEventType, message.data);
+        });
+      }
+    })
+    .catch((err) => console.error('[Realtime] Failed to connect to Ably:', err));
+
+  return {
+    close: () => {
+      closed = true;
+      client?.close();
+    },
+  };
+}
+
+function connectEventSource(
+  buttery: string | null,
+  onEvent: (type: SSEEventType, data: unknown) => void,
+): SSEConnection {
   // Close any existing connection first
   if (activeEventSource) {
     activeEventSource.close();
@@ -38,16 +96,7 @@ export function connectSSE(
   const eventSource = new EventSource(url);
   activeEventSource = eventSource;
 
-  const eventTypes: SSEEventType[] = [
-    'order:created',
-    'order:updated',
-    'payment:updated',
-    'menu:created',
-    'menu:updated',
-    'menu:deleted',
-  ];
-
-  for (const type of eventTypes) {
+  for (const type of EVENT_TYPES) {
     eventSource.addEventListener(type, (e: MessageEvent) => {
       // Ignore events from stale connections
       if (eventSource !== activeEventSource) return;
