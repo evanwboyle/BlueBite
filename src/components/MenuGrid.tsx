@@ -17,6 +17,8 @@ interface MenuGridProps {
   onUpdateMenuItem?: (id: string, updates: Partial<MenuItem>) => void;
   onCreateMenuItem?: (item: Omit<MenuItem, 'id'>) => void;
   onToggleModifier?: (itemId: string, modifierId: string, available: boolean) => void;
+  /** False when the menu lives in the Google Sheet: no creating, deleting or full edits here. */
+  menuEditable?: boolean;
 }
 
 export function MenuGrid({
@@ -30,6 +32,7 @@ export function MenuGrid({
   onUpdateMenuItem,
   onCreateMenuItem,
   onToggleModifier,
+  menuEditable = true
 }: MenuGridProps) {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isCreatingItem, setIsCreatingItem] = useState(false);
@@ -111,7 +114,7 @@ export function MenuGrid({
               <LayoutGrid size={20} />
             </button>
           </div>
-          {showEditControls && onCreateMenuItem && (
+          {showEditControls && menuEditable && onCreateMenuItem && (
             <button
               onClick={() => setIsCreatingItem(true)}
               className="glass-button px-4 py-3 rounded-xl transition flex items-center gap-2"
@@ -378,6 +381,7 @@ export function MenuGrid({
           item={selectedItem}
           isEditMode={isEditMode}
           currentUser={currentUser}
+          menuEditable={menuEditable}
           onAddToCart={(orderItem) => {
             onAddToCart(orderItem);
             setSelectedItem(null);

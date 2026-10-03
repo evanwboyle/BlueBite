@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import type { MenuItem, OrderItem, User } from '../types';
 import { X, Plus, Minus, Trash2, Upload, ImageIcon, Check } from 'lucide-react';
 import { GlassPanel } from './ui';
+import { API_BASE_URL } from '../utils/config';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
   isEditMode?: boolean;
   currentUser?: User | null;
+  /** False when the menu lives in the Google Sheet: admins get the availability/hot toggles only. */
+  menuEditable?: boolean;
   onAddToCart: (item: OrderItem) => void;
   onUpdateMenuItem?: (id: string, updates: Partial<MenuItem>) => void;
   onDeleteMenuItem?: (id: string) => void;
@@ -19,6 +22,7 @@ export function ItemDetailModal({
   item,
   isEditMode = false,
   currentUser = null,
+  menuEditable = true,
   onAddToCart,
   onUpdateMenuItem,
   onDeleteMenuItem,
@@ -66,7 +70,9 @@ export function ItemDetailModal({
   const isStaff = currentUser?.role === 'staff';
   const isAdmin = currentUser?.role === 'admin';
   const canEdit = isEditMode && (isStaff || isAdmin);
-  const canEditAll = isEditMode && isAdmin;
+  const canEditAll = isEditMode && isAdmin && menuEditable;
+  // Staff always get the availability/hot view; admins do too when the menu is edited elsewhere.
+  const staffEditView = canEdit && (!isAdmin || !menuEditable);
 
   // View mode calculations
   const allModifiers = [
@@ -95,7 +101,6 @@ export function ItemDetailModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
     setImageUploading(true);
     try {
       const formData = new FormData();
@@ -253,7 +258,7 @@ export function ItemDetailModal({
   };
 
   // Render Edit Mode (Staff)
-  if (canEdit && isStaff && !isAdmin) {
+  if (staffEditView) {
     return (
       <div
         className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -282,6 +287,11 @@ export function ItemDetailModal({
 
           {/* Content - Staff can only edit Available and Hot */}
           <div className="p-6 space-y-6">
+            {!menuEditable && (
+              <p className="text-sm text-gray-400">
+                Name, price, description, image and modifiers are edited in the Google Sheet.
+              </p>
+            )}
             <div className="space-y-4">
               {/* Available Toggle */}
               <GlassPanel level="surface" className="flex items-center justify-between">

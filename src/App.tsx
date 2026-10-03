@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Order, OrderItem, MenuItem, Modifier, User } from './types';
+import type { Order, OrderItem, MenuItem, Modifier, User, ServerConfig } from './types';
 import { Header } from './components/Header';
 import { MenuGrid } from './components/MenuGrid';
 import { CartModal } from './components/CartModal';
@@ -10,7 +10,7 @@ import { OrderManager } from './components/OrderManager';
 import { LoginPage } from './components/LoginPage';
 import { ButterySelectionPage } from './components/ButterySelectionPage';
 import { storage } from './utils/storage';
-import { api } from './utils/api';
+import { api, DEFAULT_SERVER_CONFIG } from './utils/api';
 import { API_BASE_URL } from './utils/config';
 import { calculateCartTotal } from './utils/cart';
 import { enrichOrdersWithMenuNames } from './utils/order';
@@ -46,6 +46,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [serverConfig, setServerConfig] = useState<ServerConfig>(DEFAULT_SERVER_CONFIG);
   const [isBackgroundPaused, setIsBackgroundPaused] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
@@ -61,19 +62,15 @@ function App() {
   const ordersRef = useRef<Order[]>(orders);
   ordersRef.current = orders;
 
-  // Initialize on mount — fetch butteries and auth status in parallel
+  // Every API call except the login check needs a session, so nothing else runs until we know who the user is.
+  // Learn what the backend supports (e.g. no menu editing when the Google Sheet is the store).
   useEffect(() => {
-    const fetchButteries = async () => {
-      try {
-        const butteries = await api.fetchButteries();
-        setButteryOptions(butteries);
-        // Cache just the buttery names for instant display next time
-        storage.setCachedButteryNames(butteries.map(b => b.name));
-      } catch (err) {
-        console.error('Failed to fetch butteries:', err);
-      }
-    };
+    if (!currentUser) return;
+    api.fetchServerConfig().then(setServerConfig);
+  }, [currentUser]);
 
+  // Initialize on mount — check auth status
+  useEffect(() => {
     const fetchAuth = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/user`, {
@@ -90,9 +87,25 @@ function App() {
       }
     };
 
-    fetchButteries();
     fetchAuth();
   }, []);
+
+  // Butteries, once logged in
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchButteries = async () => {
+      try {
+        const butteries = await api.fetchButteries();
+        setButteryOptions(butteries);
+        // Cache just the buttery names for instant display next time
+        storage.setCachedButteryNames(butteries.map(b => b.name));
+      } catch (err) {
+        console.error('Failed to fetch butteries:', err);
+      }
+    };
+
+    fetchButteries();
+  }, [currentUser]);
 
   // Load menu items when buttery changes - with progressive caching
   useEffect(() => {
@@ -128,8 +141,8 @@ function App() {
       }
     };
 
-    loadMenuItems();
-  }, [selectedButtery]);
+    if (currentUser) loadMenuItems();
+  }, [selectedButtery, currentUser]);
 
   // Fetch all orders (staff/admin view) after menu items are loaded - with progressive caching
   useEffect(() => {
@@ -182,14 +195,16 @@ function App() {
       }
     };
 
-    loadOrders();
-  }, [menuItems, selectedButtery]);
+    if (currentUser) loadOrders();
+  }, [menuItems, selectedButtery, currentUser]);
 
   // SSE: Real-time updates from the backend
   useEffect(() => {
     // Debounce timers — coalesce rapid SSE events into a single re-fetch
     let orderDebounce: ReturnType<typeof setTimeout> | null = null;
     let menuDebounce: ReturnType<typeof setTimeout> | null = null;
+
+    if (!currentUser) return;
 
     const connection = connectSSE(selectedButtery, (type: SSEEventType) => {
       if (type === 'order:created' || type === 'order:updated') {
@@ -231,7 +246,7 @@ function App() {
       if (menuDebounce) clearTimeout(menuDebounce);
       connection.close();
     };
-  }, [selectedButtery]);
+  }, [selectedButtery, currentUser]);
 
   const handleAddToCart = (item: OrderItem) => {
     const newCart = [...cartItems, item];
@@ -585,6 +600,7 @@ function App() {
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
               onToggleModifier={handleToggleModifier}
+              menuEditable={serverConfig.menuEditable}
             />
           </GlassPanel>
         </div>
@@ -610,7 +626,7 @@ function App() {
         <div className="relative h-full flex flex-col p-3 gap-3" style={{ zIndex: 10 }}>
           <Header onSettingsClick={() => setIsSettingsOpen(true)} currentUser={currentUser} selectedButtery={selectedButtery} butteryOptions={butteryOptions} onButteryChange={handleButteryChange} />
           <div className="flex-1 overflow-hidden">
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} preparingStatus={serverConfig.preparingStatus} />
           </div>
         </div>
 
@@ -677,6 +693,7 @@ function App() {
               onCreateMenuItem={handleCreateMenuItem}
               onDeleteMenuItem={handleDeleteMenuItem}
               onToggleModifier={handleToggleModifier}
+              menuEditable={serverConfig.menuEditable}
             />
           </GlassPanel>
 
@@ -716,7 +733,7 @@ function App() {
           <div
             style={{ flex: `0 0 calc(${100 - leftPanelWidth}% - 19px)`, minWidth: 0 }}
           >
-            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} />
+            <OrderManager orders={filteredOrders} onUpdateOrder={handleUpdateOrder} onUpdateComments={handleUpdateComments} preparingStatus={serverConfig.preparingStatus} />
           </div>
         </div>
       </div>

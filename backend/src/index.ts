@@ -1,15 +1,22 @@
-import express, { Express, Request, Response } from "express";
+import express, { Express, NextFunction, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import session from "express-session";
+import cookieParser from "cookie-parser";
 import path from "path";
 import multer from "multer";
 import { PrismaClient } from "@prisma/client";
 import passport from "./auth/cas";
+import { createGoogleAuthRouter } from "./auth/google";
+import { attachUser, signToken, setAuthCookie, clearAuthCookie } from "./auth/jwt";
 import { requireAuth, requireStaff, requireAdmin } from "./middleware/auth";
 import { syncOrderToSheet, updateOrderStatusInSheet, updateOrderCommentsInSheet } from "./services/googleSheets";
-import { orderCreateLimiter } from "./middleware/rateLimit";
+import { orderCreateLimiter, authLoginLimiter } from "./middleware/rateLimit";
 import { createPaymentsRouter } from "./routes/payments";
+import { useSheets, initSheets, startSheets, getSheets } from "./services/sheets/runtime";
+import { createSheetsRouter } from "./routes/sheets";
+import { createSheetsPaymentsRouter } from "./routes/paymentsSheets";
+import { getServerConfig } from "./routes/config";
+import { publishRealtime, flushRealtime, createRealtimeToken } from "./services/realtime";
 
 dotenv.config();
 
@@ -29,23 +36,36 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Session middleware
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "bluebite-dev-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24, // 24 hours
-    },
-  })
-);
+// On Vercel each invocation is a fresh (or frozen) process: no listen(), no poll timer. The mirror
+// refreshes per request from the shared Upstash snapshot, and realtime events must be flushed
+// before the response ends because the function is frozen right after.
+export const isServerless = Boolean(process.env.VERCEL);
 
-// Passport middleware
-app.use(passport.initialize());
-app.use(passport.session());
+if (isServerless) {
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    const end = res.end.bind(res) as (...args: unknown[]) => Response;
+    res.end = ((...args: unknown[]) => {
+      flushRealtime().finally(() => end(...args));
+      return res;
+    }) as typeof res.end;
+    next();
+  });
+}
+
+// Behind Vercel's proxy req.ip is the proxy unless we trust one hop; the per-IP rate limiters need the real client.
+if (isServerless) app.set("trust proxy", 1);
+
+// Auth: stateless JWT cookie (no server-side session, so any serverless instance can verify it)
+app.use(cookieParser());
+app.use(attachUser);
+
+// Everything under /api needs a logged-in user except the login flow itself and the Apps Script
+// webhook (which authenticates with its own shared secret and answers 404 to anyone without it).
+const PUBLIC_API_PATHS = new Set(["/auth/login", "/auth/google", "/auth/logout", "/auth/user", "/sheets/webhook"]);
+app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+  if (PUBLIC_API_PATHS.has(req.path)) return next();
+  return requireAuth(req, res, next);
+});
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
@@ -72,6 +92,7 @@ interface SSEClient {
 const sseClients: SSEClient[] = [];
 
 function broadcastEvent(eventType: string, data: unknown, buttery?: string | null) {
+  publishRealtime(eventType, data, buttery);
   const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
   const deadClients: number[] = [];
   for (let i = 0; i < sseClients.length; i++) {
@@ -91,6 +112,21 @@ function broadcastEvent(eventType: string, data: unknown, buttery?: string | nul
     sseClients.splice(deadClients[i], 1);
   }
 }
+
+// Ably token endpoint - browsers subscribe to their buttery's channel with a short-lived token
+app.get("/api/realtime/token", async (req: Request, res: Response) => {
+  try {
+    const token = await createRealtimeToken((req.query.buttery as string) || null);
+    if (!token) {
+      res.status(404).json({ error: "Realtime push is not configured" });
+      return;
+    }
+    res.json(token);
+  } catch (error) {
+    console.error("Realtime token error:", error);
+    res.status(500).json({ error: "Failed to create realtime token" });
+  }
+});
 
 // SSE endpoint - clients connect here to receive real-time updates
 app.get("/api/events", (req: Request, res: Response) => {
@@ -126,6 +162,33 @@ app.get("/api/events", (req: Request, res: Response) => {
   });
 });
 
+// STORE=sheets: the Google Sheet is the system of record. These routers are mounted ahead of the
+// Prisma routes below, which are therefore never reached for the paths they cover.
+if (useSheets()) {
+  const { mirror, store } = initSheets(broadcastEvent);
+  // Serverless (Upstash configured): no poll timer, so bring the mirror up to date before each request.
+  app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
+    if (!mirror.isShared() || req.path === "/sheets/webhook") return next();
+    try {
+      await mirror.ensureFresh();
+    } catch (error) {
+      console.error("[Sheets] Failed to refresh mirror:", error);
+      if (!mirror.isLoaded()) {
+        res.status(503).json({ error: "Sheet unavailable" });
+        return;
+      }
+    }
+    next();
+  });
+  app.use(createSheetsRouter({ mirror, store }));
+  app.use("/api/orders", createSheetsPaymentsRouter({ mirror, store, broadcastEvent }));
+}
+
+// What this backend supports (menu editing, "preparing" stage), so the frontend can hide controls that would only error.
+app.get("/api/config", (_req: Request, res: Response) => {
+  res.json(getServerConfig());
+});
+
 // Health check route
 app.get("/", (req: Request, res: Response) => {
   res.json({ message: "BlueBite API is running!", status: "ok" });
@@ -141,55 +204,47 @@ app.get("/api/health", async (req: Request, res: Response) => {
   }
 });
 
+// Sign in with Google (used until the app is registered with Yale CAS)
+app.use(
+  createGoogleAuthRouter({
+    resolveRole: async ({ netId, email }) => {
+      if (useSheets()) {
+        const { mirror } = getSheets();
+        await mirror.ensureFresh().catch(() => undefined);
+        return mirror.getRole(netId, email);
+      }
+      const user = await prisma.user.upsert({ where: { netId }, update: { updatedAt: new Date() }, create: { netId, role: "customer" } });
+      return user.role as "customer" | "staff" | "admin";
+    },
+  })
+);
+
 // CAS Login route - both initiates and handles CAS authentication
 app.get(
   "/api/auth/login",
+  authLoginLimiter,
   (req: Request, res: Response, next) => {
-    // Log incoming request details for debugging
-    const ticket = req.query.ticket;
-    const service = req.query.service;
-
-    if (ticket) {
-      console.log("CAS callback with ticket:", {
-        ticket,
-        service,
-        originalUrl: req.originalUrl,
-        queryParams: req.query
-      });
-    }
-
-    // Add custom error handling for CAS authentication
-    passport.authenticate("cas", { failureRedirect: "/" })(req, res, (err: any) => {
+    // Never log the CAS ticket or full query: a ticket is a credential until it is validated.
+    passport.authenticate("cas", { session: false, failureRedirect: "/" })(req, res, (err: any) => {
       if (err) {
-        console.error("CAS authentication error:", {
-          message: err.message,
-          cause: err.cause?.message,
-          stack: err.stack
-        });
-        return res.status(500).json({
-          error: "Authentication failed",
-          message: err.message || err,
-          details: err.cause?.message || null
-        });
+        console.error("CAS authentication error:", err.message, err.cause?.message);
+        return res.status(500).json({ error: "Authentication failed" });
       }
       next();
     });
   },
   (req: Request, res: Response) => {
-    // Authentication successful, redirect back to frontend without parameters
-    const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
-    res.redirect(frontendUrl);
+    // Authentication successful: issue the JWT cookie and go back to the frontend (same origin on Vercel).
+    const user = req.user as { netId: string; role: "customer" | "staff" | "admin" };
+    setAuthCookie(res, signToken({ netId: user.netId, role: user.role }));
+    res.redirect(process.env.FRONTEND_URL || process.env.CORS_ORIGIN || "http://localhost:5173");
   }
 );
 
 // Logout route
-app.post("/api/auth/logout", (req: Request, res: Response) => {
-  req.logout((err) => {
-    if (err) {
-      return res.status(500).json({ error: "Logout failed" });
-    }
-    res.json({ message: "Logged out successfully" });
-  });
+app.post("/api/auth/logout", (_req: Request, res: Response) => {
+  clearAuthCookie(res);
+  res.json({ message: "Logged out successfully" });
 });
 
 // Get current authenticated user
@@ -452,7 +507,10 @@ app.post("/api/orders", orderCreateLimiter, async (req: Request, res: Response) 
 });
 
 // Payment routes (send sale request to device, poll status, cancel, admin bypass) - see routes/payments.ts
-app.use("/api/orders", createPaymentsRouter({ prisma, broadcastEvent, syncOrderToSheet }));
+// (Not registered in Sheets mode: both routers would claim the provider's single result handler.)
+if (!useSheets()) {
+  app.use("/api/orders", createPaymentsRouter({ prisma, broadcastEvent, syncOrderToSheet }));
+}
 
 // Get all orders (with optional buttery filter)
 app.get("/api/orders", async (req: Request, res: Response) => {
@@ -916,12 +974,24 @@ app.get("/preview", (req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(port, () => {
-  console.log(`🚀 BlueBite API running at http://localhost:${port}`);
-});
+async function start() {
+  if (useSheets()) await startSheets();
+  app.listen(port, () => {
+    console.log(`🚀 BlueBite API running at http://localhost:${port} (store: ${useSheets() ? "google sheets" : "postgres"})`);
+  });
+}
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+if (!isServerless) {
+  start().catch((error) => {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  });
+
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+}
+
+export default app;

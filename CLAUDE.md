@@ -18,6 +18,7 @@ All commands must be run from the `backend/` directory:
 - **Push Prisma schema to database**: `npm run db:push` (syncs schema.prisma with PostgreSQL)
 - **Pull database schema**: `npm run db:pull` (generates schema from existing database)
 - **Seed database**: `npm run seed` (runs seed.ts to populate initial data)
+- **Sheets store tests**: `npm run test:sheets` (see "Google Sheets Store" below)
 
 ## Project Architecture
 
@@ -191,6 +192,18 @@ All endpoints are defined in `backend/src/index.ts`:
 - **Field-level authorization** in `backend/src/middleware/fieldAuthorization.ts`
 - Admin-only: create/update/delete menu items and modifiers; Staff+: toggle item availability
 
+## Google Sheets Store (`STORE=sheets`)
+
+Optional mode where a Google Sheet, not Postgres, is the system of record for **one buttery (Benjamin Franklin)**: menu, staff roles and each day's orders. With `STORE` unset the app runs on Postgres/Prisma exactly as described elsewhere in this file. Full docs: `documentation/SHEETS_BACKEND.md`.
+
+- **Sheet tabs**: `Menu`, `Modifiers`, `Roles`, and one `M/D/YYYY` tab per day (Eastern time) with columns `Name | Order | Done | Paid | Picked Up | Phone Number | Comments` plus backend-owned `OrderID | NetID | Total | Clover Payment ID | Submitted At | Items JSON | Cancelled`.
+- **Code** (`backend/src/services/sheets/`): `mirror.ts` (in-memory copy refreshed by a 5s poll and the Apps Script webhook, diffed into the existing SSE events; all API reads come from it), `store.ts` (every write goes through one serialized queue and re-finds the row by OrderID), `client.ts` (Sheets API with 429/5xx backoff), `model.ts` (layout, parsing, status derivation), `drive.ts` (Drive image cache), `runtime.ts` (`useSheets()`, `initSheets()`, `startSheets()`).
+- **Routes**: `routes/sheets.ts` and `routes/paymentsSheets.ts` are mounted ahead of the Prisma routes when `STORE=sheets`; `routes/config.ts` serves `GET /api/config` so the frontend can hide unsupported controls. Menu/modifier writes and image upload return 501 (the menu is edited in the sheet).
+- **Semantics**: order status is derived from checkboxes (Paid → `pending`, Done → `ready`, Picked Up → `completed`, Cancelled → `cancelled`; there is no `preparing`). Menu item IDs are item names. Hand-typed sheet rows are display-only. Payment attempts are in memory; the durable record is Paid + the Clover ID on the row (`BYPASS:<netId>` for admin bypass).
+- **Images**: Drive share links pasted into `Image URL` are proxied through `GET /api/images/:fileId` using the service account (Drive API must be enabled and the folder shared with it).
+- **Scripts** (from `backend/`): `npm run sheet:setup` (create tabs, validation, protected ranges), `npm run sheet:migrate` (copy menu/roles from Postgres), `npm run test:sheets` (unit and HTTP tests against an in-memory fake sheet; no credentials needed).
+- **Env**: `STORE`, `SHEETS_ADMIN_EMAILS`, `SHEETS_WEBHOOK_SECRET`, plus the existing `GOOGLE_SHEETS_*` vars and `SERVER_BASE_URL` (embedded in image URLs).
+
 ## Key Frontend Features
 
 - **Split-screen layout**: Resizable left panel (ordering) and right panel (order management)
@@ -319,3 +332,6 @@ Optional:
 - `CORS_ORIGIN` - Frontend URL (default: "http://localhost:5173")
 - `SERVER_BASE_URL` - Backend base URL for CAS callback (default: "http://localhost:3000")
 - `NODE_ENV` - Environment (production/development)
+- `STORE` - `sheets` to use the Google Sheet as the data store (default: Postgres). See "Google Sheets Store"
+- `SHEETS_ADMIN_EMAILS` - Comma-separated Google accounts allowed to edit protected sheet ranges (sheets mode)
+- `SHEETS_WEBHOOK_SECRET` - Shared secret for the Apps Script `POST /api/sheets/webhook` ping (sheets mode)

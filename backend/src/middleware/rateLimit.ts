@@ -39,3 +39,17 @@ export const paymentAdminLimiter = rateLimit({
   maxRequests: 30,
   keyGenerator: byIp,
 });
+
+/** CAS login/callback: real users hit this once per sign-in, so a low cap blunts ticket-guessing and redirect floods. */
+export const authLoginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 30,
+  keyGenerator: byIp,
+});
+
+/** The Apps Script webhook: a handful of edits a minute is normal; anything else is probing. */
+export const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  keyGenerator: byIp,
+});

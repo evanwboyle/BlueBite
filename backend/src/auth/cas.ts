@@ -1,5 +1,6 @@
 import passport from "passport";
 import { PrismaClient } from "@prisma/client";
+import { useSheets, getSheets } from "../services/sheets/runtime";
 const CasStrategy = require("@coursetable/passport-cas").Strategy;
 
 const prisma = new PrismaClient();
@@ -7,7 +8,8 @@ const prisma = new PrismaClient();
 // Create a custom CAS strategy with better debugging
 const casOptions = {
   version: "CAS2.0",
-  ssoBaseURL: "https://secure-tst.its.yale.edu/cas",
+  // Yale test CAS by default. Production needs CAS_BASE_URL=https://secure.its.yale.edu/cas and a service registered with Yale ITS.
+  ssoBaseURL: process.env.CAS_BASE_URL || "https://secure-tst.its.yale.edu/cas",
   serverBaseURL: process.env.SERVER_BASE_URL || "http://localhost:3000",
   // Don't set callbackURL - let the library derive it from the request
   // callbackURL is automatically constructed as: serverBaseURL + current request path
@@ -35,6 +37,11 @@ passport.use(
 
         console.log("CAS authentication successful for NetID:", netId);
 
+        // STORE=sheets: there is no user table. Roles come from the Roles tab; anyone not listed is a customer.
+        if (useSheets()) {
+          return done(null, { netId, name: null, role: getSheets().mirror.getRole(netId) });
+        }
+
         // Create or update user in database
         const user = await prisma.user.upsert({
           where: { netId },
@@ -58,21 +65,6 @@ passport.use(
   )
 );
 
-// Serialize user for session
-passport.serializeUser((user: any, done) => {
-  done(null, user.netId);
-});
-
-// Deserialize user from session
-passport.deserializeUser(async (netId: string, done) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { netId },
-    });
-    done(null, user ? { netId: user.netId, name: user.name, role: user.role } : null);
-  } catch (error) {
-    done(error);
-  }
-});
+// No serializeUser/deserializeUser: auth is a stateless JWT cookie (see auth/jwt.ts), not a passport session.
 
 export default passport;

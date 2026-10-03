@@ -155,19 +155,25 @@ interface RateLimitEntry {
 }
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
+let nextLimiterId = 0;
 
 export const rateLimit = (options: {
   windowMs: number; // Time window in milliseconds
   maxRequests: number; // Max requests per window
   keyGenerator?: (req: Request) => string; // Custom key generator
 }) => {
+  // Each limiter counts on its own. Sharing one counter per client across limiters meant, e.g.,
+  // payment-status polling used up the (much smaller) order-creation and payment-initiation limits.
+  const limiterId = nextLimiterId++;
+
   return (req: Request, res: Response, next: NextFunction): void => {
     const authReq = req as AuthenticatedRequest;
 
     // Generate key (default: netId, fallback to IP)
-    const key = options.keyGenerator
+    const clientKey = options.keyGenerator
       ? options.keyGenerator(req)
       : authReq.user?.netId || req.ip || 'anonymous';
+    const key = `${limiterId}:${clientKey}`;
 
     const now = Date.now();
     const entry = rateLimitStore.get(key);
@@ -200,74 +206,3 @@ export const rateLimit = (options: {
     next();
   };
 };
-
-/**
- * Session hijacking protection
- * Validates session integrity by checking IP and User-Agent consistency
- *
- * WARNING: This can cause issues with legitimate users behind proxies or changing networks
- * Use with caution - consider fingerprinting instead for production
- */
-export const sessionIntegrityCheck = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  if (!req.session) {
-    next();
-    return;
-  }
-
-  const currentIp = req.ip || req.socket.remoteAddress;
-  const currentUserAgent = req.get('user-agent');
-
-  // Store initial session metadata
-  if (!req.session.metadata) {
-    req.session.metadata = {
-      initialIp: currentIp,
-      initialUserAgent: currentUserAgent,
-    };
-    next();
-    return;
-  }
-
-  // Validate session hasn't been hijacked
-  const ipChanged = req.session.metadata.initialIp !== currentIp;
-  const userAgentChanged = req.session.metadata.initialUserAgent !== currentUserAgent;
-
-  if (ipChanged || userAgentChanged) {
-    console.warn('[SECURITY] Potential session hijacking detected:', {
-      netId: (req as AuthenticatedRequest).user?.netId,
-      ipChanged,
-      userAgentChanged,
-    });
-
-    // Destroy session and force re-authentication
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Error destroying suspicious session:', err);
-      }
-    });
-
-    res.status(401).json({
-      error: 'Unauthorized',
-      message: 'Session integrity validation failed. Please log in again.',
-      code: 'SESSION_INTEGRITY_FAILED',
-    });
-    return;
-  }
-
-  next();
-};
-
-/**
- * Extend Express session type to include metadata
- */
-declare module 'express-session' {
-  interface SessionData {
-    metadata?: {
-      initialIp?: string;
-      initialUserAgent?: string;
-    };
-  }
-}

@@ -81,6 +81,13 @@ export interface Payment {
   errorMessage?: string | null;
 }
 
+/** What the backend supports; see GET /api/config. */
+export interface ServerConfig {
+  store: 'sheets' | 'postgres';
+  menuEditable: boolean;
+  preparingStatus: boolean;
+}
+
 export interface User {
   netId: string;
   name?: string;

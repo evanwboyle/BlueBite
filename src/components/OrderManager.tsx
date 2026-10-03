@@ -9,9 +9,11 @@ interface OrderManagerProps {
   orders: Order[];
   onUpdateOrder: (id: string, status: Order['status']) => void;
   onUpdateComments: (id: string, comments: string) => void;
+  /** False when the backend has no distinct "preparing" stage (Google Sheet store). */
+  preparingStatus?: boolean;
 }
 
-export function OrderManager({ orders, onUpdateOrder, onUpdateComments }: OrderManagerProps) {
+export function OrderManager({ orders, onUpdateOrder, onUpdateComments, preparingStatus = true }: OrderManagerProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<Array<{ orderId: string; previousStatus: Order['status'] }>>([]);
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -217,7 +219,7 @@ export function OrderManager({ orders, onUpdateOrder, onUpdateComments }: OrderM
       // via the payment flow itself (device response, or an admin bypass).
       awaiting_payment: [],
       payment_failed: [],
-      pending: ['preparing', 'cancelled'],
+      pending: preparingStatus ? ['preparing', 'cancelled'] : ['ready', 'cancelled'],
       preparing: ['ready', 'pending'],
       ready: ['completed', 'pending'],
       completed: [],
@@ -359,7 +361,7 @@ export function OrderManager({ orders, onUpdateOrder, onUpdateComments }: OrderM
                           background: 'rgba(5, 12, 30, 0.5)',
                         }}
                       >
-                        {(['pending', 'preparing', 'ready'] as const).map(s => {
+                        {(preparingStatus ? (['pending', 'preparing', 'ready'] as const) : (['pending', 'ready'] as const)).map(s => {
                           const isActive = order.status === s;
                           const label = s === 'pending' ? 'PENDING' : s === 'preparing' ? 'PROGRESS' : 'READY';
                           return (

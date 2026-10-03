@@ -1,5 +1,6 @@
 import { MockPaymentProvider } from "./mockProvider";
 import { CloverPaymentProvider } from "./cloverProvider";
+import { CloverRestPaymentProvider } from "./cloverRestProvider";
 import type { PaymentProvider } from "./types";
 
 export * from "./types";
@@ -16,6 +17,11 @@ export function getPaymentProvider(): PaymentProvider {
   if (cached) return cached;
 
   const providerName = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase();
-  cached = providerName === "clover" ? new CloverPaymentProvider() : new MockPaymentProvider();
+  cached =
+    providerName === "clover-rest"
+      ? new CloverRestPaymentProvider()
+      : providerName === "clover"
+        ? new CloverPaymentProvider()
+        : new MockPaymentProvider();
   return cached;
 }
